@@ -1,0 +1,32 @@
+{
+  "name": "photo-processor",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "bowser": "^2.12.1",
+    "color": "^4.2.3",
+    "color-convert": "^2.0.1",
+    "color-name": "^1.1.4",
+    "color-string": "^1.9.1",
+    "detect-libc": "^2.1.1",
+    "esbuild": "^0.23.1",
+    "fast-xml-parser": "^5.2.5",
+    "is-arrayish": "^0.3.4",
+    "mnemonist": "^0.38.3",
+    "obliterator": "^1.6.1",
+    "semver": "^7.7.2",
+    "sharp": "^0.33.5",
+    "simple-swizzle": "^0.2.4",
+    "strnum": "^2.1.1",
+    "tslib": "^2.8.1"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "private": "true",
+  "type": "module"
+}

@@ -1,0 +1,39 @@
+# Moderation pipeline configuration (staging defaults)
+# Copy to moderation-settings.yaml and adjust per environment.
+moderation:
+  ai_provider: "rekognition"
+  max_file_size_mb: 5
+  allowed_mime_types:
+    - image/jpeg
+    - image/png
+    - image/heic
+  auto_rotate_exif: true
+  duplicate_check:
+    enabled: true
+    hash_algo: "sha256"
+  thresholds:
+    reject_score: 0.85      # >= value => auto reject
+    manual_review_min: 0.60 # between value and reject_score => manual review
+    text_detection:
+      enabled: true
+      blocklist_env_var: "MODERATION_TEXT_BLOCKLIST"
+    blur_detection:
+      variance_min: 120     # below => warn user photo may be blurry
+notifications:
+  channels:
+    - in_app
+    - line
+  templates:
+    approved: "notifications/photo-approved"
+    manual_review: "notifications/photo-manual-review"
+    rejected: "notifications/photo-rejected"
+  fallback_locale: "ja-JP"
+retry_policy:
+  max_attempts: 3
+  base_delay_seconds: 5
+  jitter: true
+s3:
+  draft_prefix_ttl_hours: 24
+  archive:
+    retention_days: 730
+    legal_hold_days: 90

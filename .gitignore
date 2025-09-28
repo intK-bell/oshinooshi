@@ -1,0 +1,43 @@
+# Node / Next
+node_modules/
+.next/
+out/
+dist/
+.turbo/
+.pnpm-store/
+.vercel/
+*.log
+*.tsbuildinfo
+
+# Env
+.env*
+!.env.example
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
+
+# Tests / coverage
+coverage/
+.nyc_output/
+
+# Terraform
+infra/terraform/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+!*.tfvars.example
+
+# Local artifacts
+tmp/
+infra/tmp/
+sharp/dist/
+
+# Lambda/Layers
+lambda/**/*.zip
+layer/**/*.zip
+
+# Terraform plan artifacts
+infra/terraform/plan.out

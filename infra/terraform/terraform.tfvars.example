@@ -1,0 +1,10 @@
+# Sample configuration for staging environment
+aws_region            = "ap-northeast-1"
+environment           = "stg"
+lambda_package_bucket = "oshinooshi-artifacts"
+lambda_package_key    = "lambda/photo-processor/v1.0.0/package.zip"
+acm_certificate_arn   = "arn:aws:acm:us-east-1:123456789012:certificate/EXAMPLE"
+# Optional overrides
+# lambda_runtime      = "nodejs20.x"
+# lambda_handler      = "index.handler"
+# moderation_config_path = "config/moderation-settings.yaml"
