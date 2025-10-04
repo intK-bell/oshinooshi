@@ -4,6 +4,9 @@
   "description": "This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).",
   "main": "index.js",
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.902.0",
+    "@aws-sdk/client-lambda": "^3.901.0",
+    "@aws-sdk/util-dynamodb": "^3.902.0",
     "acorn": "^8.15.0",
     "acorn-jsx": "^5.3.2",
     "ajv": "^6.12.6",
@@ -172,6 +175,7 @@
     "napi-postinstall": "^0.3.3",
     "natural-compare": "^1.4.0",
     "next": "^15.5.4",
+    "next-auth": "^4.24.11",
     "object-assign": "^4.1.1",
     "object-inspect": "^1.13.4",
     "object-keys": "^1.1.1",

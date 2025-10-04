@@ -18,6 +18,20 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
+### Environment variables
+
+`/api/profile/readiness` では DynamoDB を参照してプロフィール進捗を返します。開発時は `.env.local` などで以下を設定してください。
+
+- `PROFILE_READINESS_TABLE` — 進捗を保存している DynamoDB テーブル名
+- `PROFILE_READINESS_DEFAULT_USER_ID` — クエリパラメータが無い場合に参照するユーザーID
+- `NEXT_PUBLIC_PROFILE_READINESS_USER_ID` — フロントエンドから API を呼び出す際に付与するユーザーID
+- `PROFILE_READINESS_WRITER_FUNCTION_NAME` — 進捗を書き込む Lambda 関数名（ARN でも可）
+- `NEXTAUTH_URL` — NextAuth の公開URL（ローカルでは `http://localhost:3000`）
+- `NEXTAUTH_SECRET` — NextAuth 用のシークレット（十分に長いランダム文字列）
+- `LINE_CLIENT_ID` / `LINE_CLIENT_SECRET` — LINE Login のチャネルIDとシークレット
+
+AWS の資格情報は CLI や環境変数で設定したものがそのまま利用されます。
+
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More

@@ -166,6 +166,37 @@ resource "aws_dynamodb_table" "moderation_override" {
 }
 
 # --------------------
+# Profile readiness table
+# --------------------
+resource "aws_dynamodb_table" "profile_readiness" {
+  name         = "${local.app_name}-profile-readiness-${local.env}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "user_id"
+
+  attribute {
+    name = "user_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "updated_at"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "updated_at-index"
+    hash_key        = "updated_at"
+    projection_type = "ALL"
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  tags = local.tags
+}
+
+# --------------------
 # Messaging & Events
 # --------------------
 resource "aws_sqs_queue" "photo_intake" {
@@ -327,6 +358,92 @@ resource "aws_iam_role_policy" "photo_processor_access" {
       }
     ]
   })
+}
+
+# --------------------
+# Profile readiness writer Lambda
+# --------------------
+
+data "archive_file" "profile_readiness_lambda" {
+  type        = "zip"
+  source_dir  = "${path.module}/../../lambda/profile-readiness-writer/dist"
+  output_path = "${path.module}/../../lambda/profile-readiness-writer/profile-readiness-writer.zip"
+}
+
+resource "aws_iam_role" "profile_readiness_writer" {
+  name = "${local.app_name}-profile-readiness-writer-${local.env}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        },
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = local.tags
+}
+
+resource "aws_iam_role_policy_attachment" "profile_readiness_writer_basic" {
+  role       = aws_iam_role.profile_readiness_writer.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "profile_readiness_writer_access" {
+  name = "${local.app_name}-profile-readiness-writer-access-${local.env}"
+  role = aws_iam_role.profile_readiness_writer.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:GetItem"
+        ],
+        Resource = [
+          aws_dynamodb_table.profile_readiness.arn
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_lambda_function" "profile_readiness_writer" {
+  function_name = "${local.app_name}-profile-readiness-writer-${local.env}"
+  role          = aws_iam_role.profile_readiness_writer.arn
+  handler       = "index.handler"
+  runtime       = var.lambda_runtime
+  timeout       = 10
+  memory_size   = 256
+
+  filename         = data.archive_file.profile_readiness_lambda.output_path
+  source_code_hash = data.archive_file.profile_readiness_lambda.output_base64sha256
+
+  environment {
+    variables = {
+      PROFILE_READINESS_TABLE = aws_dynamodb_table.profile_readiness.name
+    }
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.profile_readiness_writer_basic,
+    aws_iam_role_policy.profile_readiness_writer_access
+  ]
+
+  tags = local.tags
+}
+
+resource "aws_lambda_function_url" "profile_readiness_writer" {
+  function_name      = aws_lambda_function.profile_readiness_writer.arn
+  authorization_type = "AWS_IAM"
 }
 
 # --------------------

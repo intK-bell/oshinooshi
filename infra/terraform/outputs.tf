@@ -47,3 +47,13 @@ output "notify_line_topic_arn" {
   value       = aws_sns_topic.notify_line.arn
   description = "SNS topic ARN for LINE notifications"
 }
+
+output "profile_readiness_table_name" {
+  value       = aws_dynamodb_table.profile_readiness.name
+  description = "DynamoDB table for profile readiness status"
+}
+
+output "profile_readiness_writer_function_arn" {
+  value       = aws_lambda_function.profile_readiness_writer.arn
+  description = "Lambda function ARN for profile readiness writer"
+}
