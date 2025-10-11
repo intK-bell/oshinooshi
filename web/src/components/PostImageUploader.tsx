@@ -105,6 +105,10 @@ export function PostImageUploader({
         });
 
         if (!uploadResponse.ok) {
+          const errorDetail = await uploadResponse.text().catch(() => null);
+          if (errorDetail) {
+            console.error("Upload failed response:", errorDetail);
+          }
           throw new Error(`画像のアップロードに失敗しました。（${uploadResponse.status}）`);
         }
 

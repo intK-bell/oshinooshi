@@ -83,10 +83,6 @@ export async function POST(request: NextRequest) {
     ContentType: payload.fileType,
   };
 
-  if (payload.fileSize !== undefined) {
-    commandInput.ContentLength = payload.fileSize;
-  }
-
   if (MEDIA_ACL) {
     commandInput.ACL = MEDIA_ACL;
   }
@@ -96,8 +92,12 @@ export async function POST(request: NextRequest) {
     const uploadUrl = await getSignedUrl(s3Client!, command, { expiresIn: 60 * 5 });
 
     const base = MEDIA_BASE_URL?.replace(/\/$/, "");
+    const objectPath =
+      base && base.includes("cloudfront.net")
+        ? objectKey.replace(/^public\/posts\//, "")
+        : objectKey;
     const objectUrl = base
-      ? `${base}/${objectKey}`
+      ? `${base}/${objectPath}`
       : `https://${MEDIA_BUCKET}.s3.${REGION}.amazonaws.com/${objectKey}`;
 
     return NextResponse.json({

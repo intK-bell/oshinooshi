@@ -38,7 +38,7 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 - `POST_MEDIA_BUCKET` — 投稿画像を保存する S3 バケット名
 - `POST_MEDIA_BASE_URL` — （任意）CloudFront 等の公開URL。未設定の場合は S3 の URL が利用されます
 - `POST_MEDIA_PREFIX` — 投稿画像の保存パス（既定 `public/posts/media`）
-- `POST_MEDIA_ACL` — 投稿画像アップロード時に付与する ACL（既定 `public-read`）
+- `POST_MEDIA_ACL` — 投稿画像アップロード時に付与する ACL。バケットで ACL が無効（BucketOwnerEnforced）の場合は空欄にしてください
 - `POST_MEDIA_MAX_SIZE` — アップロードを許可する最大ファイルサイズ（バイト単位、既定は 5MB）
 
 AWS の資格情報は CLI や環境変数で設定したものがそのまま利用されます。
