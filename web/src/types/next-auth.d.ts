@@ -1,16 +1,25 @@
+import type { DefaultSession } from "next-auth";
+import type { JWT as DefaultJWT } from "next-auth/jwt";
+
 declare module "next-auth" {
   interface Session {
     user: {
       id?: string;
-      name?: string | null;
-      email?: string | null;
-      image?: string | null;
-    };
-  }
-
-  interface JWT {
-    lineId?: string;
-    name?: string | null;
-    picture?: string | null;
+      uuid?: string;
+    } & DefaultSession["user"];
   }
 }
+
+declare module "next-auth/jwt" {
+  interface JWT extends DefaultJWT {
+    lineId?: string;
+    picture?: string | null;
+    userProfile?: {
+      user_uuid?: string;
+      display_name?: string;
+      picture?: string;
+    };
+  }
+}
+
+export {};

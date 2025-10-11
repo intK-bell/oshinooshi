@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent, ChangeEvent } from "react";
 import { Header } from "../../components/Header";
 import { HintTooltip } from "../../components/HintTooltip";
+import { useSession } from "next-auth/react";
 
 const prefectures = [
   "指定なし",
@@ -33,12 +34,6 @@ const skillTags = [
   "評価100件以上",
 ];
 
-const identityStatusOptions = [
-  { value: "none", label: "未提出" },
-  { value: "in_review", label: "審査中" },
-  { value: "verified", label: "承認済み" },
-];
-
 const visibilityOptions = [
   { value: "public", label: "全ユーザーに公開" },
   { value: "match_only", label: "マッチ成立後に公開" },
@@ -63,8 +58,7 @@ type ProfileFormState = {
   workspace: string;
   links: string;
   visibility: string;
-  trustOnly: boolean;
-  identityStatus: string;
+  avatarUrl: string;
   policyAgreed: boolean;
   notifications: {
     match: boolean;
@@ -87,8 +81,7 @@ const initialProfile: ProfileFormState = {
   workspace: "",
   links: "https://instagram.com/example",
   visibility: "public",
-  trustOnly: false,
-  identityStatus: "none",
+  avatarUrl: "",
   policyAgreed: false,
   notifications: {
     match: true,
@@ -96,8 +89,30 @@ const initialProfile: ProfileFormState = {
   },
 };
 
+function mergeProfile(base: ProfileFormState, incoming?: Partial<ProfileFormState> | null): ProfileFormState {
+  if (!incoming) {
+    return base;
+  }
+
+  return {
+    ...base,
+    ...incoming,
+    availability: incoming.availability ?? base.availability,
+    skillTags: incoming.skillTags ?? base.skillTags,
+    avatarUrl: incoming.avatarUrl ?? base.avatarUrl,
+    notifications: {
+      ...base.notifications,
+      ...(incoming.notifications ?? {}),
+    },
+  };
+}
+
 export default function ProfilePage() {
+  const { data: session } = useSession();
+  const effectiveUserId = session?.user?.id ?? PROFILE_USER_ID;
+
   const [profile, setProfile] = useState<ProfileFormState>(initialProfile);
+  const [avatarUploadState, setAvatarUploadState] = useState<"idle" | "uploading" | "success" | "error">("idle");
   const [errors, setErrors] = useState<string[]>([]);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
@@ -123,9 +138,6 @@ export default function ProfilePage() {
     });
   };
 
-  const selectedIdentityLabel =
-    identityStatusOptions.find((option) => option.value === profile.identityStatus)?.label ?? "未設定";
-
   const areaText =
     profile.prefecture === "指定なし" && !profile.city
       ? "未設定"
@@ -133,6 +145,65 @@ export default function ProfilePage() {
 
   const availabilityText = profile.availability.length ? profile.availability.join("・") : "未選択";
   const skillsText = profile.skillTags.length ? profile.skillTags.join("・") : "未選択";
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleAvatarButtonClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setAvatarUploadState("uploading");
+
+    try {
+      const res = await fetch("/api/profile/avatar", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileType: file.type,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to request upload URL: ${res.status}`);
+      }
+
+      const data = (await res.json()) as {
+        uploadUrl: string;
+        objectUrl: string;
+      };
+
+      const uploadResponse = await fetch(data.uploadUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": file.type,
+        },
+        body: file,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error(`Failed to upload avatar: ${uploadResponse.status}`);
+      }
+
+      setProfile((prev) => ({ ...prev, avatarUrl: data.objectUrl }));
+      setAvatarUploadState("success");
+    } catch (error) {
+      console.error("Failed to upload avatar", error);
+      setAvatarUploadState("error");
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
 
   type ReadinessStatus = "completed" | "in_progress" | "todo";
 
@@ -158,9 +229,6 @@ export default function ProfilePage() {
     const contactFields = [profile.email, profile.lineId, profile.workspace];
     const contactCompleted = contactFields.some((field) => isFilled(field));
     const contactStarted = contactCompleted;
-
-    const trustCompleted = profile.identityStatus === "verified" || isFilled(profile.links);
-    const trustStarted = profile.identityStatus !== "none" || isFilled(profile.links) || profile.trustOnly;
 
     const policyCompleted = profile.policyAgreed;
 
@@ -198,14 +266,6 @@ export default function ProfilePage() {
         description: "メールやSNSを登録して取引後の連絡手段を確保しましょう。",
         anchor: "#contact",
         hint: "メール・LINE・Slack/Discordのいずれか入力で完了とみなします。",
-      },
-      {
-        key: "trust",
-        label: "信頼性・安全",
-        status: determineStatus(trustCompleted, trustStarted),
-        description: "本人確認や外部リンクを登録すると申し込み率が向上します。",
-        anchor: "#trust",
-        hint: "本人確認ステータスを審査中以上にするか、SNSリンクを登録してください。",
       },
       {
         key: "policy",
@@ -275,7 +335,7 @@ export default function ProfilePage() {
       };
 
       if (parsed.profile) {
-        setProfile((prev) => ({ ...prev, ...parsed.profile }));
+        setProfile((prev) => mergeProfile(prev, parsed.profile));
         if (parsed.savedAt) {
           const formatted = new Date(parsed.savedAt).toLocaleTimeString("ja-JP", {
             hour: "2-digit",
@@ -291,7 +351,46 @@ export default function ProfilePage() {
       console.error("Failed to restore profile draft", error);
       setLoadMessage("保存済みデータを読み込めませんでした。もう一度保存してください。");
     }
-  }, []);
+  }, [effectiveUserId]);
+
+  useEffect(() => {
+    if (!effectiveUserId || !session?.user?.id) {
+      return;
+    }
+
+    setLoadMessage((current) => current ?? "サーバーのプロフィールを読み込み中です…");
+
+    fetch("/api/profile")
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to load profile: ${response.status}`);
+        }
+        return response.json() as Promise<{ profile?: Partial<ProfileFormState> | null }>;
+      })
+      .then((data) => {
+        if (data.profile) {
+          setProfile((prev) => mergeProfile(prev, data.profile));
+        }
+        setLoadMessage(null);
+      })
+      .catch((error) => {
+        console.error("Failed to load profile", error);
+        setLoadMessage("サーバーからプロフィールを読み込めませんでした。保存すると上書きされます。");
+      });
+  }, [effectiveUserId, session?.user?.id]);
+
+  useEffect(() => {
+    if (!session?.user) {
+      return;
+    }
+
+    setProfile((prev) =>
+      mergeProfile(prev, {
+        displayName: prev.displayName?.trim()?.length ? prev.displayName : session.user?.name ?? "LINEユーザー",
+        lineId: session.user.id ?? prev.lineId,
+      }),
+    );
+  }, [session?.user]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -314,11 +413,15 @@ export default function ProfilePage() {
       return;
     }
 
+    if (!effectiveUserId) {
+      return;
+    }
+
     const controller = new AbortController();
     setReadinessSync({ state: "loading" });
 
     const url = new URL("/api/profile/readiness", window.location.origin);
-    url.searchParams.set("userId", PROFILE_USER_ID);
+    url.searchParams.set("userId", effectiveUserId);
 
     fetch(url.toString(), { signal: controller.signal })
       .then((response) => {
@@ -355,9 +458,9 @@ export default function ProfilePage() {
     return () => {
       controller.abort();
     };
-  }, []);
+  }, [effectiveUserId]);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const validationErrors: string[] = [];
@@ -380,38 +483,79 @@ export default function ProfilePage() {
     setErrors([]);
     setSaveState("saving");
 
-    setTimeout(() => {
-      const now = new Date();
-      const formatted = now.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
-      const isoTimestamp = now.toISOString();
+    const now = new Date();
+    const formatted = now.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+    const isoTimestamp = now.toISOString();
 
-      if (typeof window !== "undefined") {
-        try {
-          window.localStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify({
-              profile,
-              savedAt: isoTimestamp,
-            }),
-          );
-        } catch (error) {
-          console.error("Failed to persist profile draft", error);
-          setErrors(["ローカル保存に失敗しました。ブラウザのストレージ容量をご確認ください。"]);
-          setSaveState("error");
-          return;
-        }
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            profile,
+            savedAt: isoTimestamp,
+          }),
+        );
+      } catch (error) {
+        console.error("Failed to persist profile draft", error);
+        setErrors(["ローカル保存に失敗しました。ブラウザのストレージ容量をご確認ください。"]);
+        setSaveState("error");
+        return;
       }
+    }
 
-      setSaveState("success");
-      setLastSavedAt(formatted);
-      setLoadMessage(null);
+    if (session?.user?.id) {
+      try {
+        const response = await fetch("/api/profile", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            displayName: profile.displayName,
+            phonetic: profile.phonetic,
+            bio: profile.bio,
+            prefecture: profile.prefecture,
+            city: profile.city,
+            allowOnline: profile.allowOnline,
+            availability: profile.availability,
+            skillTags: profile.skillTags,
+            freeTags: profile.freeTags,
+            email: profile.email,
+            lineId: profile.lineId,
+            workspace: profile.workspace,
+            links: profile.links,
+            visibility: profile.visibility,
+            avatarUrl: profile.avatarUrl,
+            policyAgreed: profile.policyAgreed,
+            notifications: profile.notifications,
+          }),
+        });
 
-      syncReadinessToServer(readinessSections, isoTimestamp);
-    }, 700);
+        if (!response.ok) {
+          throw new Error(`Failed to persist profile: ${response.status}`);
+        }
+      } catch (error) {
+        console.error("Failed to update profile", error);
+        setErrors(["サーバーへのプロフィール保存に失敗しました。時間をおいて再度お試しください。"]);
+        setSaveState("error");
+        return;
+      }
+    }
+
+    syncReadinessToServer(readinessSections, isoTimestamp, effectiveUserId);
+
+    setSaveState("success");
+    setLastSavedAt(formatted);
+    setLoadMessage(null);
   };
 
-  const syncReadinessToServer = (sections: Record<string, ReadinessStatus>, updatedAt: string) => {
-    if (!sections || Object.keys(sections).length === 0) {
+  const syncReadinessToServer = (
+    sections: Record<string, ReadinessStatus>,
+    updatedAt: string,
+    userId: string | undefined,
+  ) => {
+    if (!sections || Object.keys(sections).length === 0 || !userId) {
       return;
     }
 
@@ -423,7 +567,7 @@ export default function ProfilePage() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        userId: PROFILE_USER_ID,
+        userId,
         sections,
         updatedAt,
       }),
@@ -573,13 +717,29 @@ export default function ProfilePage() {
               </label>
               <div className="flex flex-col gap-3 text-xs text-[color:var(--color-fg-muted)]">
                 <span>アイコン画像</span>
-                <div className="flex flex-1 items-center justify-center rounded border border-dashed border-[color:var(--color-border)] bg-[color:var(--color-surface-2)] p-4">
-                  <button type="button" className="rounded-full border border-[color:var(--color-border)] px-3 py-1 text-[11px]">
+                <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded border border-dashed border-[color:var(--color-border)] bg-[color:var(--color-surface-2)] p-4">
+                  <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border border-[color:var(--color-border)] bg-white">
+                    {profile.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={profile.avatarUrl} alt="プロフィール画像" className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-[10px] text-[color:var(--color-fg-muted)]">未設定</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAvatarButtonClick}
+                    className="rounded-full border border-[color:var(--color-border)] px-3 py-1 text-[11px] hover:bg-[color:var(--color-surface)]"
+                  >
                     画像をアップロード
                   </button>
+                  <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+                  {avatarUploadState === "uploading" && <p className="text-[10px] text-[color:var(--color-fg-muted)]">アップロード中です…</p>}
+                  {avatarUploadState === "error" && <p className="text-[10px] text-[#b91c1c]">アップロードに失敗しました。時間をおいてお試しください。</p>}
+                  {avatarUploadState === "success" && <p className="text-[10px] text-[color:var(--color-fg-muted)]">アップロード済みです。</p>}
                 </div>
                 <p className="text-[10px] text-[color:var(--color-fg-muted)]">
-                  1MB 以内の JPG / PNG に対応。アップロード後にトリミングできます。
+                  1MB 以内の JPG / PNG を推奨します。アップロード後に保存するとプロフィールに反映されます。
                 </p>
               </div>
             </div>
@@ -740,33 +900,9 @@ export default function ProfilePage() {
           <section id="trust" className="space-y-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5">
             <header className="flex flex-col gap-1">
               <h2 className="text-sm font-semibold">信頼性・安全</h2>
-              <p className="text-[11px] text-[color:var(--color-fg-muted)]">本人確認や外部リンクを登録して安心度を高めましょう。</p>
+              <p className="text-[11px] text-[color:var(--color-fg-muted)]">SNS や実績リンクを登録して安心度を高めましょう。</p>
             </header>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-3 rounded border border-[color:var(--color-border)] bg-[color:var(--color-surface-2)] p-4 text-xs text-[color:var(--color-fg-muted)]">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-[#0b1f33]">本人確認</p>
-                  <span className="rounded-full bg-white px-2 py-1 text-[10px] text-[#0b1f33]">{selectedIdentityLabel}</span>
-                </div>
-                <select
-                  className="rounded border border-[color:var(--color-border)] px-3 py-2 text-xs"
-                  value={profile.identityStatus}
-                  onChange={(event) => updateProfile("identityStatus", event.target.value)}
-                >
-                  {identityStatusOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  className="inline-flex items-center justify-center rounded-full border border-[color:var(--color-border)] px-3 py-1 text-[11px] font-medium text-[#0b1f33] hover:bg-[color:var(--color-surface)]"
-                >
-                  提出をはじめる
-                </button>
-                <p className="text-[10px]">学生証・免許証など、顔写真付きの書類をご用意ください。</p>
-              </div>
               <div className="space-y-3">
                 <label className="flex flex-col gap-1 text-xs text-[color:var(--color-fg-muted)]">
                   SNS / ポートフォリオ URL
@@ -777,6 +913,8 @@ export default function ProfilePage() {
                     onChange={(event) => updateProfile("links", event.target.value)}
                   />
                 </label>
+              </div>
+              <div className="space-y-3">
                 <label className="flex flex-col gap-1 text-xs text-[color:var(--color-fg-muted)]">
                   公開範囲
                   <select
@@ -791,15 +929,7 @@ export default function ProfilePage() {
                     ))}
                   </select>
                 </label>
-                <label className="flex items-center gap-2 rounded border border-[color:var(--color-border)] px-3 py-2 text-xs text-[color:var(--color-fg-muted)]">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4"
-                    checked={profile.trustOnly}
-                    onChange={(event) => updateProfile("trustOnly", event.target.checked)}
-                  />
-                  <span>評価 3.5 以上のユーザーのみプロフィールを表示する</span>
-                </label>
+                <p className="text-[10px] text-[color:var(--color-fg-muted)]">公開範囲はいつでも変更できます。</p>
               </div>
             </div>
           </section>
@@ -863,9 +993,19 @@ export default function ProfilePage() {
               </span>
             </header>
             <div className="space-y-3 text-[color:var(--color-fg-muted)]">
-              <div>
-                <p className="text-sm font-semibold text-[#0b1f33]">{profile.displayName}</p>
-                <p className="text-[11px]">{profile.phonetic}</p>
+              <div className="flex items-center gap-3">
+                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border border-[color:var(--color-border)] bg-white">
+                  {profile.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={profile.avatarUrl} alt="プロフィール画像" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="text-[10px] text-[color:var(--color-fg-muted)]">未設定</span>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-[#0b1f33]">{profile.displayName}</p>
+                  <p className="text-[11px]">{profile.phonetic}</p>
+                </div>
               </div>
               <p className="rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-surface-2)] px-3 py-3 text-[11px] leading-relaxed">
                 {profile.bio || "自己紹介が未入力です。"}
@@ -882,10 +1022,6 @@ export default function ProfilePage() {
                 <div className="rounded-full bg-[color:var(--color-surface-2)] px-3 py-1">
                   <span className="mr-2 font-semibold text-[#0b1f33]">エリア</span>
                   <span>{areaText}</span>
-                </div>
-                <div className="rounded-full bg-[color:var(--color-surface-2)] px-3 py-1">
-                  <span className="mr-2 font-semibold text-[#0b1f33]">本人確認</span>
-                  <span>{selectedIdentityLabel}</span>
                 </div>
               </div>
               <div className="rounded-lg border border-[color:var(--color-border)] px-3 py-3 text-[11px]">

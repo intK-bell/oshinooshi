@@ -5,7 +5,8 @@ import { signIn, signOut, useSession } from "next-auth/react";
 
 const authenticatedNavLinks = [
   { href: "/matches", label: "マッチ状況" },
-  { href: "/post/new", label: "投稿" },
+  { href: "/post/new", label: "新規投稿" },
+  { href: "/post/manage", label: "投稿管理" },
   { href: "/profile", label: "プロフィール" },
   { href: "/help", label: "ガイド" },
 ];

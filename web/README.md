@@ -29,6 +29,17 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 - `NEXTAUTH_URL` — NextAuth の公開URL（ローカルでは `http://localhost:3000`）
 - `NEXTAUTH_SECRET` — NextAuth 用のシークレット（十分に長いランダム文字列）
 - `LINE_CLIENT_ID` / `LINE_CLIENT_SECRET` — LINE Login のチャネルIDとシークレット
+- `PROFILE_USER_TABLE` — LINEユーザー情報を格納する DynamoDB テーブル名
+- `POSTS_TABLE` — 投稿を格納する DynamoDB テーブル名
+- `PROFILE_AVATAR_BUCKET` — プロフィール画像を保存する S3 バケット名
+- `PROFILE_AVATAR_BASE_URL` — （任意）CloudFront などの公開URL。未設定の場合は S3 の URL が利用されます
+- `PROFILE_AVATAR_ACL` — PUT 時に付与する ACL（既定 `public-read`）。バケットポリシーと合わせて調整してください
+- `PROFILE_AVATAR_PREFIX` — S3 上での保存パス（既定 `profile/avatar`）。CloudFront の `origin_path` に合わせて `public/posts/profile/avatar` などに変更できます
+- `POST_MEDIA_BUCKET` — 投稿画像を保存する S3 バケット名
+- `POST_MEDIA_BASE_URL` — （任意）CloudFront 等の公開URL。未設定の場合は S3 の URL が利用されます
+- `POST_MEDIA_PREFIX` — 投稿画像の保存パス（既定 `public/posts/media`）
+- `POST_MEDIA_ACL` — 投稿画像アップロード時に付与する ACL（既定 `public-read`）
+- `POST_MEDIA_MAX_SIZE` — アップロードを許可する最大ファイルサイズ（バイト単位、既定は 5MB）
 
 AWS の資格情報は CLI や環境変数で設定したものがそのまま利用されます。
 

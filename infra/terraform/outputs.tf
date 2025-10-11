@@ -57,3 +57,13 @@ output "profile_readiness_writer_function_arn" {
   value       = aws_lambda_function.profile_readiness_writer.arn
   description = "Lambda function ARN for profile readiness writer"
 }
+
+output "profile_user_table_name" {
+  value       = aws_dynamodb_table.profile_user.name
+  description = "DynamoDB table for user profiles"
+}
+
+output "posts_table_name" {
+  value       = aws_dynamodb_table.posts.name
+  description = "DynamoDB table for user posts"
+}

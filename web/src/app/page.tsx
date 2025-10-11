@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Header } from "../components/Header";
+import { useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useSession } from "next-auth/react";
+import { Header } from "../components/Header";
 
 const features = [
   {
@@ -46,7 +47,43 @@ const quickActions = [
 export default function Home() {
   const { data: session, status } = useSession();
   const isAuthenticated = status === "authenticated";
-  const displayName = session?.user?.name ?? "ようこそ";
+  const [profileName, setProfileName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setProfileName(null);
+      return;
+    }
+
+    let cancelled = false;
+    fetch("/api/profile")
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to load profile: ${response.status}`);
+        }
+        return response.json() as Promise<{ profile?: { displayName?: string } | null }>;
+      })
+      .then((data) => {
+        if (cancelled) {
+          return;
+        }
+        const name = data.profile?.displayName;
+        setProfileName(name && name.trim().length > 0 ? name : null);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProfileName(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
+
+  const baseName = profileName ?? session?.user?.name ?? "ようこそ";
+  const displayName = baseName;
+  const greetingSuffix = profileName || session?.user?.name ? " さん" : "";
 
   return (
     <div className="min-h-screen bg-white text-[#0b1f33]">
@@ -56,7 +93,10 @@ export default function Home() {
         {isAuthenticated ? (
           <>
             <section className="space-y-5">
-              <p className="text-xs font-semibold text-[color:var(--color-fg-muted)]">こんにちは、{displayName} さん</p>
+              <p className="text-xs font-semibold text-[color:var(--color-fg-muted)]">
+                こんにちは、{displayName}
+                {greetingSuffix}
+              </p>
               <h1 className="text-[26px] font-semibold leading-tight sm:text-[30px]">今日のやることを素早くチェックしましょう</h1>
               <p className="max-w-xl text-sm text-[color:var(--color-fg-muted)]">
                 進行中のマッチや新しい募集をこのページからまとめて管理できます。気になるメニューを選んで、すぐに次のアクションへ進みましょう。

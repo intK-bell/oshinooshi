@@ -149,10 +149,6 @@ export default function HelpPage() {
                 <span>エリア</span>
                 <span className="font-semibold text-[#0b1f33]">東京都 / オンライン可</span>
               </div>
-              <div className="flex items-center justify-between rounded-full bg-white px-3 py-1">
-                <span>本人確認</span>
-                <span className="font-semibold text-[#0b1f33]">提出待ち</span>
-              </div>
             </div>
             <p className="text-[10px]">
               公開プレビューでアイコンや自己紹介の表示バランスを確認できます。
@@ -285,7 +281,7 @@ export default function HelpPage() {
                 value={faqQuery}
                 onChange={(event) => setFaqQuery(event.target.value)}
                 className="w-full bg-transparent text-xs text-[#0b1f33] outline-none"
-                placeholder="例: 本人確認 / 通知"
+                placeholder="例: 通知 / プロフィール"
               />
             </label>
           </div>

@@ -197,6 +197,79 @@ resource "aws_dynamodb_table" "profile_readiness" {
 }
 
 # --------------------
+# User profile table
+# --------------------
+resource "aws_dynamodb_table" "profile_user" {
+  name         = "${local.app_name}-users-${local.env}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "line_id"
+
+  attribute {
+    name = "line_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "user_uuid"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "user_uuid-index"
+    hash_key        = "user_uuid"
+    projection_type = "ALL"
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  tags = local.tags
+}
+
+# --------------------
+# Posts table
+# --------------------
+resource "aws_dynamodb_table" "posts" {
+  name         = "${local.app_name}-posts-${local.env}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "post_id"
+
+  attribute {
+    name = "post_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "user_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "status"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "user_id-index"
+    hash_key        = "user_id"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "status-index"
+    hash_key        = "status"
+    projection_type = "ALL"
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  tags = local.tags
+}
+
+# --------------------
 # Messaging & Events
 # --------------------
 resource "aws_sqs_queue" "photo_intake" {

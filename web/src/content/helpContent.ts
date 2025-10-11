@@ -91,26 +91,19 @@ export const safetyGuidelines: SafetyGuide[] = [
       "証拠となるチャットログや画像を添付すると対応がスムーズ",
     ],
   },
-  {
-    title: "本人確認",
-    items: [
-      "顔写真付き書類をアップロードし、通常 1〜2 営業日で審査",
-      "承認済みバッジはマッチ一覧や投稿カードに表示されます",
-    ],
-  },
 ];
 
 export const faqSections: FaqSection[] = [
   {
-    category: "アカウント・本人確認",
+    category: "アカウント・ログイン",
     entries: [
       {
-        question: "本人確認には何が必要ですか？",
-        answer: "学生証・運転免許証など顔写真付きの書類を 1 点アップロードしてください。氏名・生年月日が確認できれば OK です。",
+        question: "ログインできないときはどうすればいいですか？",
+        answer: "LINE アプリで承認済みか、ブラウザの Cookie が無効になっていないかをご確認ください。再ログインで解消しない場合はサポートまでご連絡ください。",
       },
       {
-        question: "審査にはどのくらい時間がかかりますか？",
-        answer: "通常は 1〜2 営業日です。混雑時はアプリ内通知で進捗をご案内します。",
+        question: "複数端末から利用できますか？",
+        answer: "同じ LINE アカウントであれば PC とスマートフォンの両方からご利用いただけます。",
       },
     ],
   },
@@ -196,9 +189,9 @@ export const profileReadiness: ProfileReadinessItem[] = [
   {
     key: "trust",
     label: "信頼性・安全",
-    description: "本人確認やSNSリンクを登録すると申し込みの信頼度が向上します。",
-    status: "todo",
-    actionLabel: "本人確認を進める",
+    description: "SNS や実績リンクを登録すると申し込みの信頼度が向上します。",
+    status: "in_progress",
+    actionLabel: "リンクを追加",
     href: "/profile#trust",
   },
   {
