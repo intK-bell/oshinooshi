@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
+
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Header } from "../../../components/Header";
@@ -118,8 +120,9 @@ export default function ManagePostsPage() {
       setActionError((error as Error).message || "投稿の更新に失敗しました。");
     } finally {
       setActionStates((prev) => {
-        const { [postId]: _, ...rest } = prev;
-        return rest;
+        const nextStates = { ...prev };
+        delete nextStates[postId];
+        return nextStates;
       });
     }
   };

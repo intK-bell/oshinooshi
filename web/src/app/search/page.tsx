@@ -1,5 +1,8 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
+
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Header } from "../../components/Header";
 import { POST_CATEGORIES, POST_GROUPS } from "../../constants/postOptions";
@@ -248,16 +251,17 @@ export default function SearchPage() {
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {posts.map((post) => (
-                <article
+                <Link
                   key={post.postId}
-                  className="flex h-full flex-col gap-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-4 text-xs text-[color:var(--color-fg-muted)]"
+                  href={`/post/${post.postId}`}
+                  className="group flex h-full flex-col gap-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-4 text-xs text-[color:var(--color-fg-muted)] transition hover:border-[color:var(--color-accent-emerald)] hover:shadow-sm"
                 >
                   {post.images.length > 0 && (
-                    <div className="overflow-hidden rounded-lg border border-[color:var(--color-border)]">
+                    <div className="overflow-hidden rounded-lg border border-[color:var(--color-border)] group-hover:border-[color:var(--color-accent-emerald)]">
                       <img
                         src={post.images[0]}
                         alt={`${post.title} の画像`}
-                        className="h-36 w-full object-cover"
+                        className="h-36 w-full object-cover transition duration-200 group-hover:scale-[1.01]"
                       />
                     </div>
                   )}
@@ -279,7 +283,7 @@ export default function SearchPage() {
                     </div>
                   )}
                   {post.body && <p className="whitespace-pre-wrap text-[11px] leading-relaxed">{post.body}</p>}
-                </article>
+                </Link>
               ))}
             </div>
           )}

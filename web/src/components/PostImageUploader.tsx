@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
+
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
 
 export type PostImageAsset = {
