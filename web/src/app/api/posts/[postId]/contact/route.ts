@@ -5,6 +5,7 @@ import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
 import { marshall } from "@aws-sdk/util-dynamodb";
 import { authOptions } from "../../../../../lib/authOptions";
 import { getPostById } from "../../../../../lib/postRepository";
+import { publishLineNotification } from "../../../../../lib/notificationPublisher";
 
 const REGION = process.env.AWS_REGION ?? process.env.AWS_DEFAULT_REGION ?? "ap-northeast-1";
 const CONTACT_TABLE = process.env.POST_CONTACT_TABLE;
@@ -76,13 +77,26 @@ export async function POST(request: NextRequest, context: { params: Promise<{ po
 
     const now = new Date().toISOString();
     const contactId = randomUUID();
+    const normalizedMessage = message.length > 0 ? message : null;
+    const initialMessages =
+      normalizedMessage !== null
+        ? [
+            {
+              message_id: randomUUID(),
+              sender_user_id: userId,
+              sender_name: session?.user?.name ?? null,
+              body: normalizedMessage,
+              created_at: now,
+            },
+          ]
+        : [];
 
     const item = marshall(
       {
         post_id: postId,
         contact_id: contactId,
         type: normalizedType,
-        message: message.length > 0 ? message : null,
+        message: normalizedMessage,
         status: "pending",
         sender_user_id: userId,
         sender_name: session?.user?.name ?? null,
@@ -90,6 +104,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ po
         recipient_user_id: post.userId,
         created_at: now,
         updated_at: now,
+        messages: initialMessages,
       },
       { removeUndefinedValues: true },
     );
@@ -100,6 +115,22 @@ export async function POST(request: NextRequest, context: { params: Promise<{ po
         Item: item,
       }),
     );
+
+    void publishLineNotification({
+      type: "contact.request.created",
+      recipientUserId: post.userId,
+      message:
+        normalizedType === "chat"
+          ? "新しいチャットリクエストが届きました。"
+          : "新しい交換リクエストが届きました。",
+      metadata: {
+        contactId,
+        postId,
+        senderUserId: userId,
+        senderName: session?.user?.name ?? null,
+        contactType: normalizedType,
+      },
+    });
 
     return NextResponse.json({ contactId, status: "pending" }, { status: 201 });
   } catch (error) {

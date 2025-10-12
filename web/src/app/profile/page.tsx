@@ -5,6 +5,7 @@ import type { FormEvent, ChangeEvent } from "react";
 import { Header } from "../../components/Header";
 import { HintTooltip } from "../../components/HintTooltip";
 import { useSession } from "next-auth/react";
+import { ContactNotificationsPanel } from "../../components/ContactNotificationsPanel";
 
 const prefectures = [
   "指定なし",
@@ -592,6 +593,8 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-white text-[#0b1f33]">
       <Header />
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-5 py-14">
+        <ContactNotificationsPanel />
+
         <section className="space-y-3">
           <h1 className="text-lg font-semibold">プロフィール設定</h1>
           <p className="text-xs text-[color:var(--color-fg-muted)]">
