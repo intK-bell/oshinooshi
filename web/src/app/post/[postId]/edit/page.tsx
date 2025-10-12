@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Header } from "../../../../components/Header";
 import { PostImageUploader, type PostImageAsset } from "../../../../components/PostImageUploader";
-import { POST_CATEGORIES, POST_GROUPS } from "../../../../constants/postOptions";
 
 type ActionState = "idle" | "saving";
 
@@ -39,12 +38,12 @@ export default function EditPostPage({ params }: EditPostPageProps) {
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [group, setGroup] = useState<string>(POST_GROUPS[0]);
+  const [group, setGroup] = useState<string>("");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [haveMembersInput, setHaveMembersInput] = useState("");
   const [wantMembersInput, setWantMembersInput] = useState("");
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [categoriesInput, setCategoriesInput] = useState("");
   const [status, setStatus] = useState<"draft" | "published">("draft");
   const [images, setImages] = useState<PostImageAsset[]>([]);
 
@@ -82,14 +81,10 @@ export default function EditPostPage({ params }: EditPostPageProps) {
 
         const loaded = data.post;
         setStatus(loaded.status === "published" ? "published" : "draft");
-        setGroup(
-          loaded.group && POST_GROUPS.includes(loaded.group as (typeof POST_GROUPS)[number])
-            ? loaded.group
-            : POST_GROUPS[0],
-        );
+        setGroup(loaded.group ?? "");
         setTitle(loaded.title ?? "");
         setBody(loaded.body ?? "");
-        setSelectedCategories(Array.isArray(loaded.categories) ? loaded.categories : []);
+        setCategoriesInput(Array.isArray(loaded.categories) ? loaded.categories.join("\n") : "");
         setImages(Array.isArray(loaded.images) ? loaded.images.map((url) => ({ url })) : []);
         setHaveMembersInput((loaded.haveMembers ?? []).join("\n"));
         setWantMembersInput((loaded.wantMembers ?? []).join("\n"));
@@ -113,12 +108,6 @@ export default function EditPostPage({ params }: EditPostPageProps) {
     setErrorMessage(null);
   };
 
-  const toggleCategory = (category: string) => {
-    setSelectedCategories((prev) =>
-      prev.includes(category) ? prev.filter((item) => item !== category) : [...prev, category],
-    );
-  };
-
   const normalizedHaveMembers = useMemo(
     () =>
       haveMembersInput
@@ -137,6 +126,15 @@ export default function EditPostPage({ params }: EditPostPageProps) {
     [wantMembersInput],
   );
 
+  const normalizedCategories = useMemo(
+    () =>
+      categoriesInput
+        .split(/\r?\n|,|、|\/|\s{2,}/)
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0),
+    [categoriesInput],
+  );
+
   const performUpdate = async (targetStatus: "draft" | "published", mode: "content" | "toggle") => {
     if (!isAuthenticated) {
       setErrorMessage("投稿を編集するにはログインが必要です。");
@@ -148,8 +146,8 @@ export default function EditPostPage({ params }: EditPostPageProps) {
       return;
     }
 
-    if (selectedCategories.length === 0) {
-      setErrorMessage("カテゴリを最低1つ選択してください。");
+    if (normalizedCategories.length === 0) {
+      setErrorMessage("グッズ種別を入力してください。");
       return;
     }
 
@@ -178,9 +176,9 @@ export default function EditPostPage({ params }: EditPostPageProps) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          group: group === POST_GROUPS[0] ? null : group,
+          group: group.trim().length > 0 ? group.trim() : null,
           title,
-          categories: selectedCategories,
+          categories: normalizedCategories,
           body,
           status: targetStatus,
           images: images.map((image) => image.url),
@@ -197,14 +195,10 @@ export default function EditPostPage({ params }: EditPostPageProps) {
 
       const updated = data.post;
       setStatus(updated.status === "published" ? "published" : "draft");
-      setGroup(
-        updated.group && POST_GROUPS.includes(updated.group as (typeof POST_GROUPS)[number])
-          ? (updated.group as string)
-          : POST_GROUPS[0],
-      );
+      setGroup(updated.group ?? "");
       setTitle(updated.title ?? "");
       setBody(updated.body ?? "");
-      setSelectedCategories(Array.isArray(updated.categories) ? updated.categories : []);
+      setCategoriesInput(Array.isArray(updated.categories) ? updated.categories.join("\n") : "");
       setImages(Array.isArray(updated.images) ? updated.images.map((url) => ({ url })) : []);
       setHaveMembersInput((updated.haveMembers ?? []).join("\n"));
       setWantMembersInput((updated.wantMembers ?? []).join("\n"));
@@ -282,23 +276,20 @@ export default function EditPostPage({ params }: EditPostPageProps) {
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-1 text-[color:var(--color-fg-muted)]">
                 推し・グループ
-                <select
+                <input
                   className="rounded border border-[color:var(--color-border)] px-3 py-2"
+                  placeholder="例: BE:FIRST / BMSG"
                   value={group}
                   onChange={(event) => setGroup(event.target.value)}
-                >
-                  {POST_GROUPS.map((groupOption) => (
-                    <option key={groupOption}>{groupOption}</option>
-                  ))}
-                </select>
+                />
               </label>
             </div>
 
             <div className="grid gap-1 text-[color:var(--color-fg-muted)]">
-              タイトル
+              シリーズ
               <input
                 className="rounded border border-[color:var(--color-border)] px-3 py-2"
-                placeholder="例: 乃木坂46 ミニフォト コンプ譲ります"
+                placeholder="例: BMSGオンラインくじ"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
               />
@@ -306,22 +297,14 @@ export default function EditPostPage({ params }: EditPostPageProps) {
 
             <div className="grid gap-1 text-[color:var(--color-fg-muted)]">
               グッズ種別
-              <div className="flex flex-wrap gap-2">
-                {POST_CATEGORIES.map((category) => (
-                  <button
-                    key={category}
-                    type="button"
-                    onClick={() => toggleCategory(category)}
-                    className={`rounded-full border px-3 py-1 transition ${
-                      selectedCategories.includes(category)
-                        ? "border-[color:var(--color-accent-emerald)] bg-[color:var(--color-accent-emerald)]/40 text-[#0b1f33]"
-                        : "border-[color:var(--color-border)] text-[color:var(--color-fg-muted)] hover:bg-[color:var(--color-surface-2)]"
-                    }`}
-                  >
-                    {category}
-                  </button>
-              ))}
-            </div>
+              <textarea
+                rows={2}
+                className="rounded border border-[color:var(--color-border)] px-3 py-2"
+                placeholder="例: タオルホルダー"
+                value={categoriesInput}
+                onChange={(event) => setCategoriesInput(event.target.value)}
+              />
+              <p className="text-[10px] text-[color:var(--color-fg-muted)]">*１種類のみ</p>
             </div>
 
             <div className="grid gap-1 text-[color:var(--color-fg-muted)]">
@@ -329,11 +312,11 @@ export default function EditPostPage({ params }: EditPostPageProps) {
               <textarea
                 rows={3}
                 className="rounded border border-[color:var(--color-border)] px-3 py-2"
-                placeholder="例: KANON\nNAOYA\nRAN"
+                placeholder="例: KANON、NAOYA、RAN"
                 value={haveMembersInput}
                 onChange={(event) => setHaveMembersInput(event.target.value)}
               />
-              <p className="text-[10px] text-[color:var(--color-fg-muted)]">改行や読点で区切って入力できます。</p>
+              <p className="text-[10px] text-[color:var(--color-fg-muted)]">改行や読点で区切って入力できます。交換で探しているメンバーを入力してください</p>
             </div>
 
             <div className="grid gap-1 text-[color:var(--color-fg-muted)]">
@@ -341,11 +324,11 @@ export default function EditPostPage({ params }: EditPostPageProps) {
               <textarea
                 rows={3}
                 className="rounded border border-[color:var(--color-border)] px-3 py-2"
-                placeholder="例: SKY-HI\nRYUHEL\nBE:FIRST メンバー"
+                placeholder="例: SKY-HI、RYUHEI"
                 value={wantMembersInput}
                 onChange={(event) => setWantMembersInput(event.target.value)}
               />
-              <p className="text-[10px] text-[color:var(--color-fg-muted)]">希望するメンバーを入力してください。</p>
+              <p className="text-[10px] text-[color:var(--color-fg-muted)]">改行や読点で区切って入力できます。希望するメンバーを入力してください。</p>
             </div>
 
             <div className="grid gap-1 text-[color:var(--color-fg-muted)]">

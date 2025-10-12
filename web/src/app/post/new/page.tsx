@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Header } from "../../../components/Header";
 import { PostImageUploader, type PostImageAsset } from "../../../components/PostImageUploader";
-import { POST_CATEGORIES, POST_GROUPS } from "../../../constants/postOptions";
 
 type SubmitState = "idle" | "saving" | "success" | "error";
 
@@ -13,27 +12,30 @@ export default function NewPostPage() {
   const { data: session } = useSession();
   const isAuthenticated = Boolean(session?.user?.id);
 
-  const [group, setGroup] = useState<string>(POST_GROUPS[0]);
+  const [group, setGroup] = useState<string>("");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [categoriesInput, setCategoriesInput] = useState("");
   const [haveMembersInput, setHaveMembersInput] = useState("");
   const [wantMembersInput, setWantMembersInput] = useState("");
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [submitState, setSubmitState] = useState<SubmitState>("idle");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [images, setImages] = useState<PostImageAsset[]>([]);
 
-  const toggleCategory = (category: string) => {
-    setSelectedCategories((prev) =>
-      prev.includes(category) ? prev.filter((item) => item !== category) : [...prev, category],
-    );
-  };
-
   const resetMessages = () => {
     setErrorMessage(null);
     setSuccessMessage(null);
   };
+
+  const normalizedCategories = useMemo(
+    () =>
+      categoriesInput
+        .split(/\r?\n|,|、|\/|\s{2,}/)
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0),
+    [categoriesInput],
+  );
 
   const normalizedHaveMembers = useMemo(
     () =>
@@ -59,6 +61,11 @@ export default function NewPostPage() {
       return;
     }
 
+    if (normalizedCategories.length === 0) {
+      setErrorMessage("グッズ種別を入力してください。");
+      return;
+    }
+
     resetMessages();
     setSubmitState("saving");
 
@@ -69,9 +76,9 @@ export default function NewPostPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          group: group === POST_GROUPS[0] ? null : group,
+          group: group.trim().length > 0 ? group.trim() : null,
           title,
-          categories: selectedCategories,
+          categories: normalizedCategories,
           body,
           status,
           images: images.map((image) => image.url),
@@ -90,10 +97,10 @@ export default function NewPostPage() {
       setSubmitState("success");
 
       if (status === "published") {
-        setGroup(POST_GROUPS[0]);
+        setGroup("");
         setTitle("");
         setBody("");
-        setSelectedCategories([]);
+        setCategoriesInput("");
         setImages([]);
         setHaveMembersInput("");
         setWantMembersInput("");
@@ -131,23 +138,20 @@ export default function NewPostPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-[color:var(--color-fg-muted)]">
               推し・グループ
-              <select
+              <input
                 className="rounded border border-[color:var(--color-border)] px-3 py-2"
+                placeholder="例: BE:FIRST / BMSG"
                 value={group}
                 onChange={(event) => setGroup(event.target.value)}
-              >
-                {POST_GROUPS.map((groupOption) => (
-                  <option key={groupOption}>{groupOption}</option>
-                ))}
-              </select>
+              />
             </label>
           </div>
 
           <div className="grid gap-1 text-[color:var(--color-fg-muted)]">
-            タイトル
+            シリーズ
             <input
               className="rounded border border-[color:var(--color-border)] px-3 py-2"
-              placeholder="例: 乃木坂46 ミニフォト コンプ譲ります"
+              placeholder="例: BMSGオンラインくじ"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
             />
@@ -155,22 +159,14 @@ export default function NewPostPage() {
 
           <div className="grid gap-1 text-[color:var(--color-fg-muted)]">
             グッズ種別
-            <div className="flex flex-wrap gap-2">
-              {POST_CATEGORIES.map((category) => (
-                <button
-                  key={category}
-                  type="button"
-                  onClick={() => toggleCategory(category)}
-                  className={`rounded-full border px-3 py-1 transition ${
-                    selectedCategories.includes(category)
-                      ? "border-[color:var(--color-accent-emerald)] bg-[color:var(--color-accent-emerald)]/40 text-[#0b1f33]"
-                      : "border-[color:var(--color-border)] text-[color:var(--color-fg-muted)] hover:bg-[color:var(--color-surface-2)]"
-                  }`}
-                >
-                  {category}
-                </button>
-              ))}
-            </div>
+            <textarea
+              rows={2}
+              className="rounded border border-[color:var(--color-border)] px-3 py-2"
+              placeholder="例: タオルホルダー"
+              value={categoriesInput}
+              onChange={(event) => setCategoriesInput(event.target.value)}
+            />
+            <p className="text-[10px] text-[color:var(--color-fg-muted)]">*１種類のみ</p>
           </div>
 
           <div className="grid gap-1 text-[color:var(--color-fg-muted)]">
@@ -178,7 +174,7 @@ export default function NewPostPage() {
             <textarea
               rows={3}
               className="rounded border border-[color:var(--color-border)] px-3 py-2"
-              placeholder="例: KANON\nNAOYA\nRAN"
+              placeholder="例: KANON、NAOYA、RAN"
               value={haveMembersInput}
               onChange={(event) => setHaveMembersInput(event.target.value)}
             />
@@ -192,12 +188,12 @@ export default function NewPostPage() {
             <textarea
               rows={3}
               className="rounded border border-[color:var(--color-border)] px-3 py-2"
-              placeholder="例: SKY-HI\nRYUHEL\nBE:FIRST メンバー"
+              placeholder="例: SKY-HI、RYUHEI"
               value={wantMembersInput}
               onChange={(event) => setWantMembersInput(event.target.value)}
             />
             <p className="text-[10px] text-[color:var(--color-fg-muted)]">
-              交換で探しているメンバーを入力してください。匿名配送など希望条件は詳細メモに記入できます。
+             改行や読点で区切って入力できます。交換で探しているメンバーを入力してください。
             </p>
           </div>
 
