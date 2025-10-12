@@ -22,12 +22,14 @@ export type PostRecord = {
   postId: string;
   userId?: string;
   status: string;
-  postType: "offer" | "request";
+  postType: "offer" | "request" | "trade";
   title: string;
   categories: string[];
   body: string;
   group: string | null;
   images: string[];
+  haveMembers: string[];
+  wantMembers: string[];
   createdAt: string | null;
   updatedAt: string | null;
 };
@@ -42,6 +44,8 @@ type StoredPostItem = {
   body?: string;
   group?: string | null;
   images?: unknown;
+  have_members?: unknown;
+  want_members?: unknown;
   created_at?: string;
   updated_at?: string;
   [key: string]: unknown;
@@ -52,12 +56,18 @@ function formatPost(item: StoredPostItem): PostRecord {
     postId: item.post_id,
     userId: item.user_id,
     status: (item.status as string) ?? "draft",
-    postType: (item.post_type as string) === "request" ? "request" : "offer",
+    postType: (item.post_type as string) === "request"
+      ? "request"
+      : (item.post_type as string) === "trade"
+        ? "trade"
+        : "offer",
     title: (item.title as string) ?? "",
     categories: Array.isArray(item.categories) ? (item.categories as string[]) : [],
     body: (item.body as string) ?? "",
     group: (item.group as string | null) ?? null,
     images: Array.isArray(item.images) ? (item.images as string[]) : [],
+    haveMembers: Array.isArray(item.have_members) ? (item.have_members as string[]) : [],
+    wantMembers: Array.isArray(item.want_members) ? (item.want_members as string[]) : [],
     createdAt: (item.created_at as string) ?? null,
     updatedAt: (item.updated_at as string) ?? null,
   };
@@ -91,7 +101,6 @@ export async function getPublishedPostById(postId: string): Promise<PostRecord |
 }
 
 export type SearchFilters = {
-  postType?: "offer" | "request";
   group?: string;
   category?: string;
   keyword?: string;
@@ -108,12 +117,6 @@ export async function searchPublishedPosts(filters: SearchFilters = {}): Promise
     ":st": { S: "published" },
   };
   const filterExpressions: string[] = [];
-
-  if (filters.postType) {
-    attributeNames["#pt"] = "post_type";
-    attributeValues[":pt"] = { S: filters.postType };
-    filterExpressions.push("#pt = :pt");
-  }
 
   if (filters.group) {
     attributeNames["#grp"] = "group";

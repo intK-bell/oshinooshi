@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Header } from "../../../../components/Header";
@@ -12,12 +12,14 @@ type ActionState = "idle" | "saving";
 type LoadedPost = {
   postId: string;
   status: "draft" | "published";
-  postType: "offer" | "request";
+  postType: "offer" | "request" | "trade";
   title: string;
   categories: string[];
   body: string;
   group: string | null;
   images: string[];
+  haveMembers: string[];
+  wantMembers: string[];
   createdAt: string | null;
   updatedAt: string | null;
 };
@@ -37,10 +39,11 @@ export default function EditPostPage({ params }: EditPostPageProps) {
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [postType, setPostType] = useState<"offer" | "request">("offer");
   const [group, setGroup] = useState<string>(POST_GROUPS[0]);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [haveMembersInput, setHaveMembersInput] = useState("");
+  const [wantMembersInput, setWantMembersInput] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [status, setStatus] = useState<"draft" | "published">("draft");
   const [images, setImages] = useState<PostImageAsset[]>([]);
@@ -78,7 +81,6 @@ export default function EditPostPage({ params }: EditPostPageProps) {
         }
 
         const loaded = data.post;
-        setPostType(loaded.postType === "request" ? "request" : "offer");
         setStatus(loaded.status === "published" ? "published" : "draft");
         setGroup(
           loaded.group && POST_GROUPS.includes(loaded.group as (typeof POST_GROUPS)[number])
@@ -89,6 +91,8 @@ export default function EditPostPage({ params }: EditPostPageProps) {
         setBody(loaded.body ?? "");
         setSelectedCategories(Array.isArray(loaded.categories) ? loaded.categories : []);
         setImages(Array.isArray(loaded.images) ? loaded.images.map((url) => ({ url })) : []);
+        setHaveMembersInput((loaded.haveMembers ?? []).join("\n"));
+        setWantMembersInput((loaded.wantMembers ?? []).join("\n"));
         setLoadState("idle");
       })
       .catch((error) => {
@@ -115,6 +119,24 @@ export default function EditPostPage({ params }: EditPostPageProps) {
     );
   };
 
+  const normalizedHaveMembers = useMemo(
+    () =>
+      haveMembersInput
+        .split(/\r?\n|,|、|\/|\s{2,}/)
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0),
+    [haveMembersInput],
+  );
+
+  const normalizedWantMembers = useMemo(
+    () =>
+      wantMembersInput
+        .split(/\r?\n|,|、|\/|\s{2,}/)
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0),
+    [wantMembersInput],
+  );
+
   const performUpdate = async (targetStatus: "draft" | "published", mode: "content" | "toggle") => {
     if (!isAuthenticated) {
       setErrorMessage("投稿を編集するにはログインが必要です。");
@@ -128,6 +150,16 @@ export default function EditPostPage({ params }: EditPostPageProps) {
 
     if (selectedCategories.length === 0) {
       setErrorMessage("カテゴリを最低1つ選択してください。");
+      return;
+    }
+
+    if (normalizedHaveMembers.length === 0) {
+      setErrorMessage("交換に出せるメンバーを1名以上入力してください。");
+      return;
+    }
+
+    if (normalizedWantMembers.length === 0) {
+      setErrorMessage("探しているメンバーを1名以上入力してください。");
       return;
     }
 
@@ -146,15 +178,16 @@ export default function EditPostPage({ params }: EditPostPageProps) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          postType,
           group: group === POST_GROUPS[0] ? null : group,
           title,
           categories: selectedCategories,
-        body,
-        status: targetStatus,
-        images: images.map((image) => image.url),
-      }),
-    });
+          body,
+          status: targetStatus,
+          images: images.map((image) => image.url),
+          haveMembers: normalizedHaveMembers,
+          wantMembers: normalizedWantMembers,
+        }),
+      });
 
       const data = (await response.json().catch(() => ({}))) as { post?: LoadedPost; error?: string };
 
@@ -163,7 +196,6 @@ export default function EditPostPage({ params }: EditPostPageProps) {
       }
 
       const updated = data.post;
-      setPostType(updated.postType === "request" ? "request" : "offer");
       setStatus(updated.status === "published" ? "published" : "draft");
       setGroup(
         updated.group && POST_GROUPS.includes(updated.group as (typeof POST_GROUPS)[number])
@@ -174,6 +206,8 @@ export default function EditPostPage({ params }: EditPostPageProps) {
       setBody(updated.body ?? "");
       setSelectedCategories(Array.isArray(updated.categories) ? updated.categories : []);
       setImages(Array.isArray(updated.images) ? updated.images.map((url) => ({ url })) : []);
+      setHaveMembersInput((updated.haveMembers ?? []).join("\n"));
+      setWantMembersInput((updated.wantMembers ?? []).join("\n"));
 
       setSuccessMessage(
         mode === "toggle"
@@ -203,7 +237,7 @@ export default function EditPostPage({ params }: EditPostPageProps) {
         <section className="space-y-3">
           <h1 className="text-lg font-semibold">投稿編集</h1>
           <p className="text-xs text-[color:var(--color-fg-muted)]">
-            内容を編集し、公開ステータスを切り替えることができます。
+            同種交換の条件を編集し、公開ステータスを切り替えることができます。
           </p>
           <div className="flex flex-wrap gap-3 text-xs">
             <Link
@@ -247,29 +281,6 @@ export default function EditPostPage({ params }: EditPostPageProps) {
           <section className="space-y-6 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-6 text-xs">
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-1 text-[color:var(--color-fg-muted)]">
-                投稿タイプ
-                <div className="flex gap-3">
-                  <label className="inline-flex items-center gap-2 rounded-full border border-[color:var(--color-border)] px-3 py-2">
-                    <input
-                      type="radio"
-                      name="postType"
-                      checked={postType === "offer"}
-                      onChange={() => setPostType("offer")}
-                    />
-                    譲ります
-                  </label>
-                  <label className="inline-flex items-center gap-2 rounded-full border border-[color:var(--color-border)] px-3 py-2">
-                    <input
-                      type="radio"
-                      name="postType"
-                      checked={postType === "request"}
-                      onChange={() => setPostType("request")}
-                    />
-                    求めます
-                  </label>
-                </div>
-              </label>
-              <label className="grid gap-1 text-[color:var(--color-fg-muted)]">
                 推し・グループ
                 <select
                   className="rounded border border-[color:var(--color-border)] px-3 py-2"
@@ -311,6 +322,30 @@ export default function EditPostPage({ params }: EditPostPageProps) {
                   </button>
               ))}
             </div>
+            </div>
+
+            <div className="grid gap-1 text-[color:var(--color-fg-muted)]">
+              交換に出せるメンバー
+              <textarea
+                rows={3}
+                className="rounded border border-[color:var(--color-border)] px-3 py-2"
+                placeholder="例: KANON\nNAOYA\nRAN"
+                value={haveMembersInput}
+                onChange={(event) => setHaveMembersInput(event.target.value)}
+              />
+              <p className="text-[10px] text-[color:var(--color-fg-muted)]">改行や読点で区切って入力できます。</p>
+            </div>
+
+            <div className="grid gap-1 text-[color:var(--color-fg-muted)]">
+              探しているメンバー
+              <textarea
+                rows={3}
+                className="rounded border border-[color:var(--color-border)] px-3 py-2"
+                placeholder="例: SKY-HI\nRYUHEL\nBE:FIRST メンバー"
+                value={wantMembersInput}
+                onChange={(event) => setWantMembersInput(event.target.value)}
+              />
+              <p className="text-[10px] text-[color:var(--color-fg-muted)]">希望するメンバーを入力してください。</p>
             </div>
 
             <div className="grid gap-1 text-[color:var(--color-fg-muted)]">

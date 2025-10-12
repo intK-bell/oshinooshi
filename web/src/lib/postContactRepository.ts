@@ -34,6 +34,8 @@ export type ContactRecord = {
   recipientUserId: string;
   createdAt: string | null;
   updatedAt: string | null;
+  lineRequestStatus?: string | null;
+  lineRequestUpdatedAt?: string | null;
   messages: ContactMessage[];
 };
 
@@ -58,6 +60,8 @@ type StoredContactItem = {
   created_at?: string;
   updated_at?: string;
   messages?: unknown;
+  line_request_status?: string | null;
+  line_request_updated_at?: string | null;
   [key: string]: unknown;
 };
 
@@ -94,6 +98,8 @@ function formatContact(item: StoredContactItem): ContactRecord {
     recipientUserId: item.recipient_user_id ?? "",
     createdAt: item.created_at ?? null,
     updatedAt: item.updated_at ?? null,
+    lineRequestStatus: typeof item.line_request_status === "string" ? item.line_request_status : null,
+    lineRequestUpdatedAt: typeof item.line_request_updated_at === "string" ? item.line_request_updated_at : null,
     messages,
   };
 }
@@ -215,6 +221,41 @@ export async function updateContactStatus(
 
   if (!updateResult.Attributes) {
     throw new Error("Failed to update contact status");
+  }
+
+  return formatContact(unmarshall(updateResult.Attributes) as StoredContactItem);
+}
+
+export async function updateLineRequestStatus(
+  postId: string,
+  contactId: string,
+  requesterUserId: string,
+  nextStatus: string,
+): Promise<ContactRecord> {
+  requireClient();
+
+  const now = new Date().toISOString();
+
+  const updateResult: UpdateItemCommandOutput = await dynamoClient!.send(
+    new UpdateItemCommand({
+      TableName: CONTACT_TABLE,
+      Key: {
+        post_id: { S: postId },
+        contact_id: { S: contactId },
+      },
+      UpdateExpression: "SET line_request_status = :line_request_status, line_request_updated_at = :line_request_updated_at",
+      ConditionExpression: "sender_user_id = :requester OR recipient_user_id = :requester",
+      ExpressionAttributeValues: {
+        ":line_request_status": { S: nextStatus },
+        ":line_request_updated_at": { S: now },
+        ":requester": { S: requesterUserId },
+      },
+      ReturnValues: "ALL_NEW",
+    }),
+  );
+
+  if (!updateResult.Attributes) {
+    throw new Error("Failed to update line request status");
   }
 
   return formatContact(unmarshall(updateResult.Attributes) as StoredContactItem);

@@ -1,8 +1,9 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Header } from "@/components/Header";
 
@@ -12,21 +13,29 @@ type ContactListItem = {
   type: "chat" | "request";
   status: string;
   message: string | null;
+  lineRequestStatus?: string | null;
+  lineRequestUpdatedAt?: string | null;
   sender: {
     userId: string;
     name: string | null;
     uuid?: string | null;
+    lineFriendUrl?: string | null;
   };
   recipient: {
     userId: string;
     name?: string | null;
+    lineFriendUrl?: string | null;
   };
   createdAt: string | null;
   updatedAt: string | null;
   post: {
     title: string;
-    postType: "offer" | "request";
+    postType: "offer" | "request" | "trade";
     status: string;
+    images?: string[];
+    group?: string | null;
+    haveMembers?: string[];
+    wantMembers?: string[];
   } | null;
   viewerRole: "sender" | "recipient";
 };
@@ -47,12 +56,14 @@ type ConversationMessage = {
 type PostSummary = {
   postId: string;
   title: string;
-  postType: "offer" | "request";
+  postType: "offer" | "request" | "trade";
   status: string;
   images: string[];
   categories: string[];
   body: string | null;
   group: string | null;
+  haveMembers: string[];
+  wantMembers: string[];
 };
 
 type ConversationDetail = {
@@ -65,10 +76,12 @@ type ConversationDetail = {
   sender: {
     userId: string;
     name: string | null;
+    lineFriendUrl?: string | null;
   };
   recipient: {
     userId: string;
     name: string | null;
+    lineFriendUrl?: string | null;
   };
   messages: ConversationMessage[];
 };
@@ -105,7 +118,8 @@ const STATUS_ORDER: Record<string, number> = {
 
 const PENDING_PAGE_SIZE = 5;
 
-export default function ConversationsPage() {
+function ConversationsPageContent() {
+  const searchParams = useSearchParams();
   const { data: session } = useSession();
   const viewerId = session?.user?.id ?? null;
 
@@ -120,6 +134,7 @@ export default function ConversationsPage() {
   const [statusActionState, setStatusActionState] = useState<"idle" | "loading">("idle");
   const [selfPendingPage, setSelfPendingPage] = useState(1);
   const [counterPendingPage, setCounterPendingPage] = useState(1);
+  const [initialSelectionHandled, setInitialSelectionHandled] = useState(false);
 
   const fetchContacts = useCallback(async () => {
     setListState({ status: "loading" });
@@ -238,6 +253,28 @@ export default function ConversationsPage() {
       // handled in loadConversationDetail
     });
   }, [contacts, selectedContactId, loadConversationDetail]);
+
+  useEffect(() => {
+    if (initialSelectionHandled) {
+      return;
+    }
+
+    const contactIdFromQuery = searchParams.get("contactId");
+
+    if (!contactIdFromQuery) {
+      setInitialSelectionHandled(true);
+      return;
+    }
+
+    const target = contacts.find((contact) => contact.contactId === contactIdFromQuery);
+    if (target) {
+      setSelectedContactId(contactIdFromQuery);
+      setInitialSelectionHandled(true);
+    } else if (listState.status === "success") {
+      // contacts loaded but target not found
+      setInitialSelectionHandled(true);
+    }
+  }, [contacts, initialSelectionHandled, listState.status, searchParams]);
 
   useEffect(() => {
     if (!actionFeedback) {
@@ -431,7 +468,6 @@ export default function ConversationsPage() {
       const counterpartName = resolveCounterpartName(contact);
       const counterpartStatusName = formatCounterpartStatusName(counterpartName);
       const title = contact.post?.title ?? "投稿";
-      const postTypeLabel = contact.post?.postType === "request" ? "求めます" : "譲ります";
       const imageUrl = contact.post?.images?.[0] ?? null;
       const groupLabel = contact.post?.group ?? null;
       const pendingStatusLabel =
@@ -469,10 +505,34 @@ export default function ConversationsPage() {
                 </Link>
               </div>
               <div className="flex flex-wrap gap-2 text-[10px] text-[color:var(--color-fg-muted)]">
-                <span className="rounded-full bg-[color:var(--color-surface-2)] px-2 py-1">{postTypeLabel}</span>
+                <span className="rounded-full bg-[color:var(--color-surface-2)] px-2 py-1">同種交換</span>
                 <span className="rounded-full bg-[color:var(--color-surface-2)] px-2 py-1">{pendingStatusLabel}</span>
                 {groupLabel && <span className="rounded-full bg-[color:var(--color-surface-2)] px-2 py-1">{groupLabel}</span>}
               </div>
+              {(contact.post?.haveMembers?.length || 0) > 0 && (
+                <div className="space-y-1 text-[10px] text-[color:var(--color-fg-muted)]">
+                  <p className="font-semibold text-[#0b1f33]">手元にあるメンバー</p>
+                  <div className="flex flex-wrap gap-2">
+                    {contact.post!.haveMembers!.map((member) => (
+                      <span key={`pending-have-${contact.contactId}-${member}`} className="rounded-full bg-[color:var(--color-surface-2)] px-2 py-1">
+                        {member}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(contact.post?.wantMembers?.length || 0) > 0 && (
+                <div className="space-y-1 text-[10px] text-[color:var(--color-fg-muted)]">
+                  <p className="font-semibold text-[#0b1f33]">探しているメンバー</p>
+                  <div className="flex flex-wrap gap-2">
+                    {contact.post!.wantMembers!.map((member) => (
+                      <span key={`pending-want-${contact.contactId}-${member}`} className="rounded-full bg-[color:var(--color-surface-2)] px-2 py-1">
+                        {member}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
               {variant === "self" ? (
                 <div className="flex flex-wrap gap-3">
                   <button
@@ -592,15 +652,24 @@ export default function ConversationsPage() {
     const fallback: PostSummary = {
       postId: selectedContactSummary.postId,
       title: selectedContactSummary.post?.title ?? "投稿",
-      postType: selectedContactSummary.post?.postType ?? "offer",
+      postType: selectedContactSummary.post?.postType ?? "trade",
       status: conversation?.status ?? selectedContactSummary.status,
-      images: [],
+      images: selectedContactSummary.post?.images ?? [],
       categories: [],
       body: null,
       group: selectedContactSummary.post?.group ?? null,
+      haveMembers: [],
+      wantMembers: [],
     };
 
-    const summary = postSummary ?? fallback;
+    const summary = postSummary
+      ? {
+          ...postSummary,
+          postType: postSummary.postType ?? "trade",
+          haveMembers: postSummary.haveMembers ?? [],
+          wantMembers: postSummary.wantMembers ?? [],
+        }
+      : fallback;
     const viewerRoleForStatus =
       detailState.status === "success"
         ? detailState.viewerRole
@@ -646,12 +715,38 @@ export default function ConversationsPage() {
             </Link>
           </div>
           <div className="flex flex-wrap gap-2 text-[10px] text-[color:var(--color-fg-muted)]">
-            <span className="rounded-full bg-[color:var(--color-surface-2)] px-2 py-1">
-              {summary.postType === "offer" ? "譲ります" : "求めます"}
-            </span>
+            <span className="rounded-full bg-[color:var(--color-surface-2)] px-2 py-1">同種交換</span>
             <span className="rounded-full bg-[color:var(--color-surface-2)] px-2 py-1">{statusLabel}</span>
             {summary.group && <span className="rounded-full bg-[color:var(--color-surface-2)] px-2 py-1">{summary.group}</span>}
           </div>
+          {(summary.haveMembers.length > 0 || summary.wantMembers.length > 0) && (
+            <div className="grid gap-3 text-[10px] text-[color:var(--color-fg-muted)]">
+              {summary.haveMembers.length > 0 && (
+                <div className="space-y-1">
+                  <p className="font-semibold text-[#0b1f33]">手元にあるメンバー</p>
+                  <div className="flex flex-wrap gap-2">
+                    {summary.haveMembers.map((member) => (
+                      <span key={`detail-have-${member}`} className="rounded-full bg-[color:var(--color-surface-2)] px-3 py-1">
+                        {member}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {summary.wantMembers.length > 0 && (
+                <div className="space-y-1">
+                  <p className="font-semibold text-[#0b1f33]">探しているメンバー</p>
+                  <div className="flex flex-wrap gap-2">
+                    {summary.wantMembers.map((member) => (
+                      <span key={`detail-want-${member}`} className="rounded-full bg-[color:var(--color-surface-2)] px-3 py-1">
+                        {member}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </article>
     );
@@ -752,6 +847,11 @@ export default function ConversationsPage() {
       return timeA - timeB;
     });
 
+    const counterpartLineFriendUrl =
+      selectedContactSummary.viewerRole === "sender"
+        ? selectedContactSummary.recipient.lineFriendUrl ?? null
+        : selectedContactSummary.sender.lineFriendUrl ?? null;
+
     return (
       <div className="space-y-6">
         {renderPostCard()}
@@ -817,7 +917,7 @@ export default function ConversationsPage() {
                 href="/conversations"
                 className="inline-flex items-center gap-2 rounded-full border border-[color:var(--color-border)] px-3 py-1 text-[10px] text-[#0b1f33] transition hover:bg-[color:var(--color-surface-2)]"
               >
-                チャット／リクエスト画面へ
+                チャット画面へ
               </Link>
             </div>
           </section>
@@ -869,7 +969,25 @@ export default function ConversationsPage() {
                   placeholder={`${counterpartName} へのメッセージを入力`}
                   className="w-full rounded border border-[color:var(--color-border)] px-3 py-2 text-xs"
                 />
-                <div className="flex justify-end">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap gap-2">
+                    <Link
+                      href={`/line-requests?contactId=${selectedContactSummary.contactId}`}
+                      className="inline-flex w-fit items-center gap-2 rounded-full border border-[color:var(--color-border)] px-3 py-1 text-[10px] text-[#0b1f33] transition hover:bg-[color:var(--color-surface-2)]"
+                    >
+                      LINE友達を申請
+                    </Link>
+                    {conversationDetail.status === "accepted" && counterpartLineFriendUrl && (
+                      <a
+                        href={counterpartLineFriendUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex w-fit items-center gap-2 rounded-full border border-[color:var(--color-accent-emerald)] px-3 py-1 text-[10px] font-semibold text-[color:var(--color-accent-emerald-ink)] transition hover:bg-[color:var(--color-accent-emerald)]/20"
+                      >
+                        LINEでお友達になる
+                      </a>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={handleSendMessage}
@@ -909,7 +1027,7 @@ export default function ConversationsPage() {
       <Header />
       <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-5 py-14">
         <section className="space-y-3">
-          <h1 className="text-lg font-semibold">チャット／リクエスト</h1>
+          <h1 className="text-lg font-semibold">チャット</h1>
           <p className="text-xs text-[color:var(--color-fg-muted)]">
             ステータスで絞り込み、リクエストを選択すると投稿概要とチャットが表示されます。
           </p>
@@ -1006,4 +1124,23 @@ function formatStatus(
     default:
       return "承認待ち";
   }
+}
+
+function ConversationsPageFallback() {
+  return (
+    <div className="min-h-screen bg-white text-[#0b1f33]">
+      <Header />
+      <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-5 py-14">
+        <p className="text-xs text-[color:var(--color-fg-muted)]">読み込み中です…</p>
+      </main>
+    </div>
+  );
+}
+
+export default function ConversationsPage() {
+  return (
+    <Suspense fallback={<ConversationsPageFallback />}>
+      <ConversationsPageContent />
+    </Suspense>
+  );
 }

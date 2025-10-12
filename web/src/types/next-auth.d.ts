@@ -6,6 +6,7 @@ declare module "next-auth" {
     user: {
       id?: string;
       uuid?: string;
+      lineFriendUrl?: string;
     } & DefaultSession["user"];
   }
 }
@@ -14,10 +15,12 @@ declare module "next-auth/jwt" {
   interface JWT extends DefaultJWT {
     lineId?: string;
     picture?: string | null;
+    lineFriendUrl?: string | null;
     userProfile?: {
       user_uuid?: string;
       display_name?: string;
       picture?: string;
+      line_friend_url?: string;
     };
   }
 }

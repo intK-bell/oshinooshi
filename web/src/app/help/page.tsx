@@ -3,7 +3,13 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Header } from "../../components/Header";
-import { faqSections as faqContent, safetyGuidelines, type FaqSection } from "../../content/helpContent";
+import {
+  faqSections as faqContent,
+  safetyGuidelines,
+  stepGuides,
+  usageFlowSteps,
+  type FaqSection,
+} from "../../content/helpContent";
 
 export default function HelpPage() {
   const [faqQuery, setFaqQuery] = useState("");
@@ -48,25 +54,64 @@ export default function HelpPage() {
         <section className="space-y-3">
           <h1 className="text-lg font-semibold">ご利用ガイド</h1>
           <p className="text-xs text-[color:var(--color-fg-muted)]">
-            プロフィールの整え方や、安全にやりとりするためのポイントをまとめています。
+            登録から評価までの流れと、各ステップで押さえておきたいポイントをまとめました。
           </p>
         </section>
 
         <section className="space-y-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5">
-          <h2 className="text-sm font-semibold">ミスマッチを防ぐコツ</h2>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2 text-[11px] text-[color:var(--color-fg-muted)]">
-              <p className="text-xs font-semibold text-[#0b1f33]">やりとりの流れを明記</p>
-              <p>申し込み後の返信タイミングや確認したいことを事前に書いておくとスムーズです。</p>
-            </div>
-            <div className="space-y-2 text-[11px] text-[color:var(--color-fg-muted)]">
-              <p className="text-xs font-semibold text-[#0b1f33]">条件は箇条書きで</p>
-              <p>希望枚数や同封物など、重要な条件は箇条書きやチェックリストで整理しましょう。</p>
-            </div>
-            <div className="space-y-2 text-[11px] text-[color:var(--color-fg-muted)]">
-              <p className="text-xs font-semibold text-[#0b1f33]">返信速度の目安</p>
-              <p>「24時間以内に返信」「夜は既読のみ」など、相手が安心する情報を添えると親切です。</p>
-            </div>
+          <h2 className="text-sm font-semibold">ご利用の流れ</h2>
+          <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {usageFlowSteps.map((step, index) => (
+              <li key={step.title} className="space-y-2 rounded-2xl border border-[color:var(--color-border)] bg-white p-4 text-[11px] text-[color:var(--color-fg-muted)]">
+                <span className="text-[10px] font-semibold text-[color:var(--color-accent-emerald-ink)]">STEP {index + 1}</span>
+                <h3 className="text-xs font-semibold text-[#0b1f33]">{step.title}</h3>
+                <p>{step.summary}</p>
+                <a href={step.anchor} className="inline-flex items-center gap-1 text-[10px] font-semibold text-[color:var(--color-accent-emerald-ink)]">
+                  詳しく見る →
+                </a>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className="space-y-5">
+          <div className="space-y-2">
+            <h2 className="text-sm font-semibold">ステップ別ガイド</h2>
+            <p className="text-xs text-[color:var(--color-fg-muted)]">
+              各ステップで迷いやすいポイントをまとめました。必要な箇所から読み進めてください。
+            </p>
+          </div>
+          <div className="space-y-5">
+            {stepGuides.map((guide) => (
+              <article
+                key={guide.key}
+                id={guide.key}
+                className="space-y-3 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5 text-[11px] text-[color:var(--color-fg-muted)]"
+              >
+                <div className="space-y-1">
+                  <h3 className="text-xs font-semibold text-[#0b1f33]">{guide.title}</h3>
+                  <p>{guide.intro}</p>
+                </div>
+                <ul className="space-y-2">
+                  {guide.bullets.map((bullet) => (
+                    <li key={bullet} className="flex gap-2 rounded-lg border border-[color:var(--color-border)] bg-white px-4 py-3">
+                      <span className="text-[color:var(--color-accent-emerald-ink)]">・</span>
+                      <span>{bullet}</span>
+                    </li>
+                  ))}
+                </ul>
+                {guide.link && (
+                  <a
+                    href={guide.link.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-[10px] font-semibold text-[color:var(--color-accent-emerald-ink)]"
+                  >
+                    {guide.link.label} →
+                  </a>
+                )}
+              </article>
+            ))}
           </div>
         </section>
 

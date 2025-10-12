@@ -15,6 +15,8 @@ type PostRecord = {
   body: string;
   group: string | null;
   images: string[];
+  haveMembers: string[];
+  wantMembers: string[];
   createdAt: string | null;
   updatedAt: string | null;
 };
@@ -127,6 +129,43 @@ export default function ManagePostsPage() {
     }
   };
 
+  const handleDelete = async (post: PostRecord) => {
+    setActionMessage(null);
+    setActionError(null);
+
+    const title = post.title && post.title.trim().length > 0 ? post.title.trim() : "この投稿";
+    const confirmed = typeof window !== "undefined" && window.confirm(`${title}を削除してよろしいですか？`);
+    if (!confirmed) {
+      return;
+    }
+
+    setActionStates((prev) => ({ ...prev, [post.postId]: "loading" }));
+
+    try {
+      const response = await fetch(`/api/posts/${post.postId}`, {
+        method: "DELETE",
+      });
+
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? `Failed to delete post (${response.status})`);
+      }
+
+      setPosts((prev) => prev.filter((item) => item.postId !== post.postId));
+      setActionMessage("投稿を削除しました。");
+    } catch (error) {
+      console.error("Failed to delete post", error);
+      setActionError((error as Error).message || "投稿の削除に失敗しました。");
+    } finally {
+      setActionStates((prev) => {
+        const nextStates = { ...prev };
+        delete nextStates[post.postId];
+        return nextStates;
+      });
+    }
+  };
+
   const draftPosts = useMemo(() => posts.filter((post) => post.status === "draft"), [posts]);
   const publishedPosts = useMemo(() => posts.filter((post) => post.status === "published"), [posts]);
 
@@ -170,6 +209,7 @@ export default function ManagePostsPage() {
                 posts={draftPosts}
                 emptyMessage="下書きはまだありません。"
                 onToggleStatus={handleStatusToggle}
+                onDelete={handleDelete}
                 actionStates={actionStates}
               />
             </section>
@@ -183,6 +223,7 @@ export default function ManagePostsPage() {
                 posts={publishedPosts}
                 emptyMessage="公開済みの投稿はまだありません。"
                 onToggleStatus={handleStatusToggle}
+                onDelete={handleDelete}
                 actionStates={actionStates}
               />
             </section>
@@ -197,10 +238,11 @@ type PostListProps = {
   posts: PostRecord[];
   emptyMessage: string;
   onToggleStatus: (postId: string, status: "draft" | "published") => void;
+  onDelete: (post: PostRecord) => void;
   actionStates: Record<string, "idle" | "loading">;
 };
 
-function PostList({ posts, emptyMessage, onToggleStatus, actionStates }: PostListProps) {
+function PostList({ posts, emptyMessage, onToggleStatus, onDelete, actionStates }: PostListProps) {
   if (posts.length === 0) {
     return (
       <p className="rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-surface-2)] px-4 py-3 text-[color:var(--color-fg-muted)]">
@@ -217,9 +259,7 @@ function PostList({ posts, emptyMessage, onToggleStatus, actionStates }: PostLis
           className="space-y-2 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5"
         >
           <div className="flex items-center justify-between text-[11px] text-[color:var(--color-fg-muted)]">
-            <span className="rounded-full bg-[color:var(--color-surface-2)] px-3 py-1 text-[#0b1f33]">
-              {post.postType === "request" ? "求めます" : "譲ります"}
-            </span>
+            <span className="rounded-full bg-[color:var(--color-surface-2)] px-3 py-1 text-[#0b1f33]">同種交換</span>
             <span>{formatDate(post.updatedAt)}</span>
           </div>
           {post.images.length > 0 && (
@@ -242,6 +282,30 @@ function PostList({ posts, emptyMessage, onToggleStatus, actionStates }: PostLis
               ))}
             </div>
           )}
+          {post.haveMembers.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold text-[#0b1f33]">手元にあるメンバー</p>
+              <div className="flex flex-wrap gap-2 text-[10px] text-[color:var(--color-fg-muted)]">
+                {post.haveMembers.map((member) => (
+                  <span key={`${post.postId}-have-${member}`} className="rounded-full bg-[color:var(--color-surface-2)] px-3 py-1">
+                    {member}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {post.wantMembers.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold text-[#0b1f33]">探しているメンバー</p>
+              <div className="flex flex-wrap gap-2 text-[10px] text-[color:var(--color-fg-muted)]">
+                {post.wantMembers.map((member) => (
+                  <span key={`${post.postId}-want-${member}`} className="rounded-full bg-[color:var(--color-surface-2)] px-3 py-1">
+                    {member}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           {post.body && <p className="text-[11px] text-[color:var(--color-fg-muted)]">{post.body}</p>}
           <div className="flex flex-wrap gap-2 pt-1 text-[11px]">
             <Link
@@ -261,6 +325,14 @@ function PostList({ posts, emptyMessage, onToggleStatus, actionStates }: PostLis
                 : post.status === "draft"
                   ? "公開する"
                   : "下書きに戻す"}
+            </button>
+            <button
+              type="button"
+              className="inline-flex items-center justify-center rounded-full border border-[#b91c1c] px-3 py-1 font-medium text-[#b91c1c] transition hover:bg-[#b91c1c0d] disabled:opacity-60"
+              disabled={actionStates[post.postId] === "loading"}
+              onClick={() => onDelete(post)}
+            >
+              削除する
             </button>
           </div>
         </article>

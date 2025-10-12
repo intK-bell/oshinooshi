@@ -14,7 +14,33 @@ type LineProfile = Profile & {
   sub?: string;
   name?: string | null;
   picture?: string | null;
+  friendUrl?: string | null;
+  friend_url?: string | null;
+  addFriendUrl?: string | null;
+  add_friend_url?: string | null;
 };
+
+function extractLineFriendUrl(profile?: LineProfile): string | undefined {
+  if (!profile) {
+    return undefined;
+  }
+
+  const candidates = [profile.friendUrl, profile.friend_url, profile.addFriendUrl, profile.add_friend_url] as Array<
+    string | null | undefined
+  >;
+
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+
+  if (profile.sub && profile.sub.trim().length > 0) {
+    return `https://line.me/R/ti/p/${profile.sub}`;
+  }
+
+  return undefined;
+}
 
 export const authOptions: NextAuthOptions & { trustHost?: boolean } = {
   providers: [
@@ -52,6 +78,12 @@ export const authOptions: NextAuthOptions & { trustHost?: boolean } = {
         ":user_uuid": { S: randomUUID() },
         ":created_at": { S: now },
       };
+
+      const friendUrl = extractLineFriendUrl(profile);
+      if (friendUrl) {
+        updateExpressions.push("line_friend_url = :line_friend_url");
+        expressionValues[":line_friend_url"] = { S: friendUrl };
+      }
 
       if (profile?.picture && profile.picture.length > 0) {
         updateExpressions.push("picture = :picture");
@@ -91,6 +123,10 @@ export const authOptions: NextAuthOptions & { trustHost?: boolean } = {
         }
         token.name = profile.name ?? token.name;
         token.picture = profile.picture ?? token.picture;
+        const friendUrl = extractLineFriendUrl(profile);
+        if (friendUrl) {
+          token.lineFriendUrl = friendUrl;
+        }
 
         if (PROFILE_USER_TABLE && dynamoClient && profileLineId) {
           try {
@@ -105,6 +141,10 @@ export const authOptions: NextAuthOptions & { trustHost?: boolean } = {
 
             if (result.Item) {
               token.userProfile = unmarshall(result.Item);
+              const storedFriendUrl = (token.userProfile as Record<string, unknown>).line_friend_url;
+              if (typeof storedFriendUrl === "string" && storedFriendUrl.length > 0) {
+                token.lineFriendUrl = storedFriendUrl;
+              }
             }
           } catch (error) {
             console.error("Failed to load LINE user profile", error);
@@ -122,6 +162,10 @@ export const authOptions: NextAuthOptions & { trustHost?: boolean } = {
           );
           if (result.Item) {
             token.userProfile = unmarshall(result.Item);
+            const storedFriendUrl = (token.userProfile as Record<string, unknown>).line_friend_url;
+            if (typeof storedFriendUrl === "string" && storedFriendUrl.length > 0) {
+              token.lineFriendUrl = storedFriendUrl;
+            }
           }
         } catch (error) {
           console.error("Failed to load LINE user profile", error);
@@ -136,6 +180,8 @@ export const authOptions: NextAuthOptions & { trustHost?: boolean } = {
         session.user.name = (profileData?.display_name as string | undefined) ?? token.name ?? session.user.name;
         session.user.image = (profileData?.picture as string | undefined) ?? token.picture ?? session.user.image;
         session.user.uuid = profileData?.user_uuid as string | undefined;
+        session.user.lineFriendUrl =
+          (profileData?.line_friend_url as string | undefined) ?? (token.lineFriendUrl as string | undefined);
       }
       return session;
     },

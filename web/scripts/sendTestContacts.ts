@@ -61,11 +61,11 @@ async function main() {
   const tasks: Array<Promise<unknown>> = [];
 
   if (options.includeChat) {
-    tasks.push(createContact(client, CONTACT_TABLE, options, post.user_id, "chat", options.chatMessage));
+    tasks.push(createContact(client, CONTACT_TABLE!, options, post.user_id!, "chat", options.chatMessage));
   }
 
   if (options.includeRequest) {
-    tasks.push(createContact(client, CONTACT_TABLE, options, post.user_id, "request", options.requestMessage));
+    tasks.push(createContact(client, CONTACT_TABLE!, options, post.user_id!, "request", options.requestMessage));
   }
 
   const contactIds = await Promise.all(tasks);

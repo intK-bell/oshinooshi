@@ -76,7 +76,7 @@ export function PostInteractionPanel({ postId, postTitle, isOwnPost }: PostInter
         <div className="rounded border border-[color:var(--color-border)] bg-[color:var(--color-surface-2)] px-3 py-3 text-[11px] text-[color:var(--color-fg-muted)]">
           この投稿に届いたチャット申請は{" "}
           <Link href="/conversations" className="underline">
-            チャット／リクエスト
+            チャット
           </Link>{" "}
           画面でまとめて確認できます。
         </div>
@@ -117,19 +117,27 @@ export function PostInteractionPanel({ postId, postTitle, isOwnPost }: PostInter
               onClick={handleSubmit}
               className="inline-flex items-center justify-center rounded-full bg-[color:var(--color-accent-emerald)] px-4 py-2 text-xs font-semibold text-[color:var(--color-accent-emerald-ink)] shadow-sm disabled:opacity-60 disabled:hover:bg-[color:var(--color-accent-emerald)]"
             >
-              チャット申請を送る
+          チャット申請を送る
             </button>
           </div>
         </>
       )}
 
       <div className="flex justify-end">
-        <Link
-          href="/conversations"
-          className="inline-flex items-center gap-2 rounded-full border border-[color:var(--color-border)] px-3 py-1 text-[10px] text-[#0b1f33] transition hover:bg-[color:var(--color-surface-2)]"
-        >
-          チャット／リクエスト画面へ
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/conversations"
+            className="inline-flex items-center gap-2 rounded-full border border-[color:var(--color-border)] px-3 py-1 text-[10px] text-[#0b1f33] transition hover:bg-[color:var(--color-surface-2)]"
+          >
+            チャット画面へ
+          </Link>
+          <Link
+            href="/line-requests"
+            className="inline-flex items-center gap-2 rounded-full border border-[color:var(--color-border)] px-3 py-1 text-[10px] text-[#0b1f33] transition hover:bg-[color:var(--color-surface-2)]"
+          >
+            LINE申請を確認
+          </Link>
+        </div>
       </div>
     </div>
   );

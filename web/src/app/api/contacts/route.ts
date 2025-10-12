@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../../lib/authOptions";
 import { listContactsForRecipient, listContactsForSender, type ContactRecord } from "../../../lib/postContactRepository";
 import { getPostById } from "../../../lib/postRepository";
+import { getLineFriendUrls } from "../../../lib/profileRepository";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -75,8 +76,12 @@ export async function GET(request: NextRequest) {
       string,
       {
         title: string;
-        postType: "offer" | "request";
+        postType: "offer" | "request" | "trade";
         status: string;
+        images: string[];
+        group: string | null;
+        haveMembers: string[];
+        wantMembers: string[];
       }
     > = {};
 
@@ -89,6 +94,10 @@ export async function GET(request: NextRequest) {
               title: post.title,
               postType: post.postType,
               status: post.status,
+              images: Array.isArray(post.images) ? post.images : [],
+              group: typeof post.group === "string" ? post.group : null,
+              haveMembers: Array.isArray(post.haveMembers) ? post.haveMembers : [],
+              wantMembers: Array.isArray(post.wantMembers) ? post.wantMembers : [],
             };
           }
         } catch (error) {
@@ -97,19 +106,33 @@ export async function GET(request: NextRequest) {
       }),
     );
 
+    const uniqueUserIds = Array.from(
+      new Set(
+        contacts
+          .flatMap((contact) => [contact.senderUserId, contact.recipientUserId])
+          .filter((value): value is string => typeof value === "string" && value.length > 0),
+      ),
+    );
+
+    const friendUrlMap = await getLineFriendUrls(uniqueUserIds);
+
     const payload = contacts.map((contact) => ({
       contactId: contact.contactId,
       postId: contact.postId,
       type: contact.type,
       status: contact.status,
       message: contact.message,
+      lineRequestStatus: contact.lineRequestStatus ?? null,
+      lineRequestUpdatedAt: contact.lineRequestUpdatedAt ?? null,
       sender: {
         userId: contact.senderUserId,
         name: contact.senderName,
         uuid: contact.senderUuid,
+        lineFriendUrl: friendUrlMap.get(contact.senderUserId) ?? null,
       },
       recipient: {
         userId: contact.recipientUserId,
+        lineFriendUrl: friendUrlMap.get(contact.recipientUserId) ?? null,
       },
       createdAt: contact.createdAt,
       updatedAt: contact.updatedAt,

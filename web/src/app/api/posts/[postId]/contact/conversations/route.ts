@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { getPostById } from "@/lib/postRepository";
 import { listContactsByPost } from "@/lib/postContactRepository";
+import { getLineFriendUrls } from "@/lib/profileRepository";
 
 export async function GET(request: NextRequest, context: { params: Promise<{ postId: string }> }) {
   const session = await getServerSession(authOptions);
@@ -29,6 +30,8 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pos
       categories: Array.isArray(post.categories) ? post.categories : [],
       body: typeof post.body === "string" ? post.body : null,
       group: typeof post.group === "string" ? post.group : null,
+      haveMembers: Array.isArray(post.haveMembers) ? post.haveMembers : [],
+      wantMembers: Array.isArray(post.wantMembers) ? post.wantMembers : [],
     } as const;
 
     const allContacts = await listContactsByPost(postId);
@@ -38,6 +41,16 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pos
       ? allContacts
       : allContacts.filter((contact) => contact.senderUserId === viewerId || contact.recipientUserId === viewerId);
 
+    const uniqueUserIds = Array.from(
+      new Set(
+        relevantContacts
+          .flatMap((contact) => [contact.senderUserId, contact.recipientUserId])
+          .filter((value): value is string => typeof value === "string" && value.length > 0),
+      ),
+    );
+
+    const friendUrlMap = await getLineFriendUrls(uniqueUserIds);
+
     const payload = relevantContacts.map((contact) => ({
       contactId: contact.contactId,
       postId: contact.postId,
@@ -45,13 +58,17 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pos
       type: contact.type,
       createdAt: contact.createdAt,
       updatedAt: contact.updatedAt,
+      lineRequestStatus: contact.lineRequestStatus ?? null,
+      lineRequestUpdatedAt: contact.lineRequestUpdatedAt ?? null,
       sender: {
         userId: contact.senderUserId,
         name: contact.senderName,
+        lineFriendUrl: friendUrlMap.get(contact.senderUserId) ?? null,
       },
       recipient: {
         userId: contact.recipientUserId,
         name: null,
+        lineFriendUrl: friendUrlMap.get(contact.recipientUserId) ?? null,
       },
       messages: contact.messages.map((message) => ({
         messageId: message.messageId,

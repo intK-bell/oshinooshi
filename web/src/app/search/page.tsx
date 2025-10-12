@@ -3,30 +3,26 @@
 /* eslint-disable @next/next/no-img-element */
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Header } from "../../components/Header";
+import { formatSimilarityPercentage } from "../../lib/affinitySimilarity";
 import { POST_CATEGORIES, POST_GROUPS } from "../../constants/postOptions";
-
-type PostTypeFilter = "all" | "offer" | "request";
 
 type SearchPost = {
   postId: string;
   status: "draft" | "published";
-  postType: "offer" | "request";
   title: string;
   categories: string[];
   body: string;
   group: string | null;
   images: string[];
+  haveMembers: string[];
+  wantMembers: string[];
   createdAt: string | null;
   updatedAt: string | null;
+  affinitySimilarity: number | null;
 };
-
-const postTypeChips: Array<{ label: string; value: PostTypeFilter }> = [
-  { label: "全て", value: "all" },
-  { label: "譲ります", value: "offer" },
-  { label: "求めます", value: "request" },
-];
 
 const groupOptions = ["すべて", ...POST_GROUPS.filter((group) => group !== "未選択")];
 const categoryOptions = ["指定なし", ...POST_CATEGORIES];
@@ -50,20 +46,28 @@ function formatDate(value: string | null) {
 }
 
 export default function SearchPage() {
+  const { status } = useSession();
+  const isAuthenticated = status === "authenticated";
   const [keyword, setKeyword] = useState("");
   const [group, setGroup] = useState(groupOptions[0]);
   const [category, setCategory] = useState(categoryOptions[0]);
-  const [selectedPostType, setSelectedPostType] = useState<PostTypeFilter>("all");
   const [activeFilters, setActiveFilters] = useState({
     keyword: "",
     group: groupOptions[0],
     category: categoryOptions[0],
-    postType: "all" as PostTypeFilter,
   });
 
   const [posts, setPosts] = useState<SearchPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const hasAnySimilarity = useMemo(
+    () => posts.some((post) => typeof post.affinitySimilarity === "number"),
+    [posts],
+  );
+  const showSimilarityReminder = useMemo(
+    () => !isLoading && posts.length > 0 && !hasAnySimilarity,
+    [isLoading, posts.length, hasAnySimilarity],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -77,9 +81,6 @@ export default function SearchPage() {
         params.set("status", "published");
         params.set("limit", "60");
 
-        if (activeFilters.postType !== "all") {
-          params.set("postType", activeFilters.postType);
-        }
         if (activeFilters.group !== groupOptions[0]) {
           params.set("group", activeFilters.group);
         }
@@ -100,8 +101,35 @@ export default function SearchPage() {
           throw new Error((data as { error?: string }).error ?? `検索に失敗しました。（${response.status}）`);
         }
 
-        const data = (await response.json()) as { posts?: SearchPost[] };
-        setPosts(data.posts ?? []);
+        const data = (await response.json()) as { posts?: Array<Record<string, unknown>> };
+        const normalizedPosts: SearchPost[] = (data.posts ?? []).map((post) => {
+          const categories = Array.isArray(post.categories)
+            ? (post.categories as unknown[]).filter((value): value is string => typeof value === "string")
+            : [];
+          const images = Array.isArray(post.images)
+            ? (post.images as unknown[]).filter((value): value is string => typeof value === "string")
+            : [];
+
+          return {
+            postId: typeof post.postId === "string" ? post.postId : "",
+            status: post.status === "draft" ? "draft" : "published",
+            title: typeof post.title === "string" ? post.title : "",
+            categories,
+            body: typeof post.body === "string" ? post.body : "",
+            group: typeof post.group === "string" ? post.group : null,
+            images,
+            haveMembers: Array.isArray(post.haveMembers)
+              ? (post.haveMembers as unknown[]).filter((value): value is string => typeof value === "string")
+              : [],
+            wantMembers: Array.isArray(post.wantMembers)
+              ? (post.wantMembers as unknown[]).filter((value): value is string => typeof value === "string")
+              : [],
+            createdAt: typeof post.createdAt === "string" ? post.createdAt : null,
+            updatedAt: typeof post.updatedAt === "string" ? post.updatedAt : null,
+            affinitySimilarity: typeof post.affinitySimilarity === "number" ? post.affinitySimilarity : null,
+          };
+        });
+        setPosts(normalizedPosts);
       } catch (error) {
         if (controller.signal.aborted) {
           return;
@@ -128,24 +156,8 @@ export default function SearchPage() {
       keyword,
       group,
       category,
-      postType: selectedPostType,
     });
   };
-
-  const handleChipClick = (value: PostTypeFilter) => {
-    if (selectedPostType === value) {
-      return;
-    }
-    setSelectedPostType(value);
-    setActiveFilters({
-      keyword,
-      group,
-      category,
-      postType: value,
-    });
-  };
-
-  const statusLabel = (value: "offer" | "request") => (value === "offer" ? "譲ります" : "求めます");
 
   return (
     <div className="min-h-screen bg-white text-[#0b1f33]">
@@ -155,9 +167,9 @@ export default function SearchPage() {
         <section className="space-y-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-lg font-semibold">投稿を探す</h1>
+              <h1 className="text-lg font-semibold">交換投稿を探す</h1>
               <p className="text-xs text-[color:var(--color-fg-muted)]">
-                キーワード・推し・グッズ種別で絞り込みができます。
+                手元にあるメンバーや探しているメンバーが近い交換相手を見つけましょう。
               </p>
             </div>
           </div>
@@ -199,22 +211,6 @@ export default function SearchPage() {
                 ))}
               </select>
             </label>
-            <div className="sm:col-span-3 flex flex-wrap gap-2 text-xs text-[color:var(--color-fg-muted)]">
-              {postTypeChips.map((chip) => (
-                <button
-                  key={chip.value}
-                  type="button"
-                  onClick={() => handleChipClick(chip.value)}
-                  className={`rounded-full border px-3 py-1 transition ${
-                    selectedPostType === chip.value
-                      ? "border-[color:var(--color-accent-emerald)] bg-[color:var(--color-accent-emerald)]/40 text-[#0b1f33]"
-                      : "border-[color:var(--color-border)] hover:bg-[color:var(--color-surface-2)]"
-                  }`}
-                >
-                  {chip.label}
-                </button>
-              ))}
-            </div>
             <div className="sm:col-span-3 flex justify-end">
               <button
                 type="submit"
@@ -249,43 +245,99 @@ export default function SearchPage() {
               条件に一致する投稿が見つかりませんでした。条件を変えて再度お試しください。
             </p>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {posts.map((post) => (
-                <Link
-                  key={post.postId}
-                  href={`/post/${post.postId}`}
-                  className="group flex h-full flex-col gap-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-4 text-xs text-[color:var(--color-fg-muted)] transition hover:border-[color:var(--color-accent-emerald)] hover:shadow-sm"
-                >
-                  {post.images.length > 0 && (
-                    <div className="overflow-hidden rounded-lg border border-[color:var(--color-border)] group-hover:border-[color:var(--color-accent-emerald)]">
-                      <img
-                        src={post.images[0]}
-                        alt={`${post.title} の画像`}
-                        className="h-36 w-full object-cover transition duration-200 group-hover:scale-[1.01]"
-                      />
+            <>
+              {showSimilarityReminder && (
+                <p className="rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-surface-2)] px-4 py-3 text-[11px] text-[color:var(--color-fg-muted)]">
+                  {isAuthenticated
+                    ? "推し傾向アンケートに回答すると類似度スコアが表示されます。"
+                    : "ログインして推し傾向アンケートに回答すると類似度スコアが表示されます。"}
+                </p>
+              )}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {posts.map((post) => {
+                const similarityPercentage = formatSimilarityPercentage(post.affinitySimilarity);
+                const similarityLabel =
+                  similarityPercentage !== null
+                    ? `${similarityPercentage}%`
+                    : isAuthenticated
+                      ? "アンケート未回答"
+                      : "ログインで表示";
+                const similarityHighlight = similarityPercentage !== null;
+
+                return (
+                  <Link
+                    key={post.postId}
+                    href={`/post/${post.postId}`}
+                    className="group flex h-full flex-col gap-3 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-4 text-xs text-[color:var(--color-fg-muted)] transition hover:border-[color:var(--color-accent-emerald)] hover:shadow-sm"
+                  >
+                    {post.images.length > 0 && (
+                      <div className="overflow-hidden rounded-lg border border-[color:var(--color-border)] group-hover:border-[color:var(--color-accent-emerald)]">
+                        <img
+                          src={post.images[0]}
+                          alt={`${post.title} の画像`}
+                          className="h-36 w-full object-cover transition duration-200 group-hover:scale-[1.01]"
+                        />
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="rounded-full bg-[color:var(--color-accent-emerald)]/30 px-3 py-1 text-[color:var(--color-accent-emerald-ink)]">
+                        同種交換
+                      </span>
+                      <span>{formatDate(post.updatedAt)}</span>
                     </div>
-                  )}
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="rounded-full bg-[color:var(--color-accent-emerald)]/30 px-3 py-1 text-[color:var(--color-accent-emerald-ink)]">
-                      {statusLabel(post.postType)}
-                    </span>
-                    <span>{formatDate(post.updatedAt)}</span>
-                  </div>
-                  <h2 className="text-sm font-semibold text-[#0b1f33]">{post.title}</h2>
-                  {post.group && <p>推し・グループ: {post.group}</p>}
-                  {post.categories.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {post.categories.map((categoryValue) => (
-                        <span key={categoryValue} className="rounded-full bg-[color:var(--color-surface-2)] px-3 py-1">
-                          {categoryValue}
-                        </span>
-                      ))}
+                    <div className="flex items-center justify-between text-[11px] text-[color:var(--color-fg-muted)]">
+                      <span>推し類似度</span>
+                      <span
+                        className={
+                          similarityHighlight
+                            ? "font-semibold text-[color:var(--color-accent-emerald-ink)]"
+                            : ""
+                        }
+                      >
+                        {similarityLabel}
+                      </span>
                     </div>
-                  )}
-                  {post.body && <p className="whitespace-pre-wrap text-[11px] leading-relaxed">{post.body}</p>}
-                </Link>
-              ))}
-            </div>
+                    <h2 className="text-sm font-semibold text-[#0b1f33]">{post.title}</h2>
+                    {post.group && <p>推し・グループ: {post.group}</p>}
+                    {post.categories.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {post.categories.map((categoryValue) => (
+                          <span key={categoryValue} className="rounded-full bg-[color:var(--color-surface-2)] px-3 py-1">
+                            {categoryValue}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {post.haveMembers.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-semibold text-[#0b1f33]">手元にあるメンバー</p>
+                        <div className="flex flex-wrap gap-2">
+                          {post.haveMembers.map((member) => (
+                            <span key={`${post.postId}-have-${member}`} className="rounded-full bg-[color:var(--color-surface-2)] px-3 py-1">
+                              {member}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {post.wantMembers.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-semibold text-[#0b1f33]">探しているメンバー</p>
+                        <div className="flex flex-wrap gap-2">
+                          {post.wantMembers.map((member) => (
+                            <span key={`${post.postId}-want-${member}`} className="rounded-full bg-[color:var(--color-surface-2)] px-3 py-1">
+                              {member}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {post.body && <p className="whitespace-pre-wrap text-[11px] leading-relaxed">{post.body}</p>}
+                  </Link>
+                );
+              })}
+              </div>
+            </>
           )}
         </section>
       </main>
