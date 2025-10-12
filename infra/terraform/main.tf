@@ -270,6 +270,54 @@ resource "aws_dynamodb_table" "posts" {
 }
 
 # --------------------
+# Post contact table
+# --------------------
+resource "aws_dynamodb_table" "post_contact" {
+  name         = "${local.app_name}-post-contact-${local.env}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "post_id"
+  range_key    = "contact_id"
+
+  attribute {
+    name = "post_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "contact_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "recipient_user_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "sender_user_id"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "recipient_user_id-index"
+    hash_key        = "recipient_user_id"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "sender_user_id-index"
+    hash_key        = "sender_user_id"
+    projection_type = "ALL"
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  tags = local.tags
+}
+
+# --------------------
 # Messaging & Events
 # --------------------
 resource "aws_sqs_queue" "photo_intake" {

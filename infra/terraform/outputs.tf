@@ -67,3 +67,8 @@ output "posts_table_name" {
   value       = aws_dynamodb_table.posts.name
   description = "DynamoDB table for user posts"
 }
+
+output "post_contact_table_name" {
+  value       = aws_dynamodb_table.post_contact.name
+  description = "DynamoDB table for post contact requests"
+}
