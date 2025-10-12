@@ -5,11 +5,6 @@ export type VisibilityLevel = {
   benefit: string;
 };
 
-export type WritingTip = {
-  title: string;
-  rows: string[];
-};
-
 export type SafetyGuide = {
   title: string;
   items: string[];
@@ -25,14 +20,12 @@ export type FaqSection = {
   entries: FaqEntry[];
 };
 
-export type ProfileReadinessItem = {
-  key: string;
-  label: string;
-  description: string;
-  status: "completed" | "in_progress" | "todo";
-  actionLabel: string;
-  href: string;
-};
+export const basicProfileTemplate: string[] = [
+  "1. 自己紹介（呼び方・推し歴・交換スタンス）",
+  "2. 求めている / 提供できるアイテムと条件",
+  "3. 取引の希望日時や場所、NG事項",
+  "4. 最後のひとこと（返信タイミングや感謝など）",
+];
 
 export const visibilityLevels: VisibilityLevel[] = [
   {
@@ -52,26 +45,6 @@ export const visibilityLevels: VisibilityLevel[] = [
     label: "非公開",
     description: "プロフィールは自分のみ閲覧できます。下書き状態で準備できます。",
     benefit: "準備中でも下書きを保存して内容を温められます",
-  },
-];
-
-export const writingTips: WritingTip[] = [
-  {
-    title: "基本構成テンプレート",
-    rows: [
-      "1. 自己紹介（呼び方・推し歴・交換スタンス）",
-      "2. 求めている / 提供できるアイテムと条件",
-      "3. 取引の希望日時や場所、NG事項",
-      "4. 最後のひとこと（返信タイミングや感謝など）",
-    ],
-  },
-  {
-    title: "AIサジェストの活用",
-    rows: [
-      "・入力途中でも「AIで文章を整える」を押すと推敲案を提示",
-      "・過去の投稿やプロフィールから語彙を学習して自然な文体を提案",
-      "・安全に配慮した言い換えを含めてハラスメント防止にも活用",
-    ],
   },
 ];
 
@@ -158,48 +131,5 @@ export const faqSections: FaqSection[] = [
         answer: "専門チームが内容を確認し、必要に応じてチャット停止・アカウント凍結を行います。進捗はアプリ内通知でお知らせします。",
       },
     ],
-  },
-];
-
-export const profileReadiness: ProfileReadinessItem[] = [
-  {
-    key: "basic",
-    label: "基本情報",
-    description: "表示名・ふりがな・自己紹介を入力すると検索結果での印象が安定します。",
-    status: "completed",
-    actionLabel: "プロフィール設定を開く",
-    href: "/profile",
-  },
-  {
-    key: "area",
-    label: "活動エリア",
-    description: "都道府県やオンライン対応を設定するとマッチング精度が上がります。",
-    status: "in_progress",
-    actionLabel: "エリア情報を編集",
-    href: "/profile#activity",
-  },
-  {
-    key: "contact",
-    label: "連絡手段",
-    description: "アプリ外の連絡先を追加すると取引後の連絡がスムーズになります。",
-    status: "in_progress",
-    actionLabel: "連絡方法を追加",
-    href: "/profile#contact",
-  },
-  {
-    key: "trust",
-    label: "信頼性・安全",
-    description: "SNS や実績リンクを登録すると申し込みの信頼度が向上します。",
-    status: "in_progress",
-    actionLabel: "リンクを追加",
-    href: "/profile#trust",
-  },
-  {
-    key: "policy",
-    label: "利用ポリシー",
-    description: "コミュニティガイドラインに同意し、通知設定を整備しましょう。",
-    status: "completed",
-    actionLabel: "通知設定を確認",
-    href: "/profile#policy",
   },
 ];

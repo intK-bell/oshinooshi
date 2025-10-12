@@ -20,6 +20,17 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pos
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
 
+    const postSummary = {
+      postId: post.postId,
+      title: post.title,
+      postType: post.postType,
+      status: post.status,
+      images: Array.isArray(post.images) ? post.images : [],
+      categories: Array.isArray(post.categories) ? post.categories : [],
+      body: typeof post.body === "string" ? post.body : null,
+      group: typeof post.group === "string" ? post.group : null,
+    } as const;
+
     const allContacts = await listContactsByPost(postId);
 
     const isOwner = Boolean(post.userId && post.userId === viewerId);
@@ -56,6 +67,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pos
         contacts: payload,
         viewerRole: isOwner ? "owner" : "sender",
         ownerUserId: post.userId ?? null,
+        post: postSummary,
       },
       { status: 200 },
     );

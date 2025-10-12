@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ChangeEvent } from "react";
 import { Header } from "../../components/Header";
 import { HintTooltip } from "../../components/HintTooltip";
+import { basicProfileTemplate } from "../../content/helpContent";
 import { useSession } from "next-auth/react";
-import { ContactNotificationsPanel } from "../../components/ContactNotificationsPanel";
 
 const prefectures = [
   "指定なし",
@@ -124,6 +124,7 @@ export default function ProfilePage() {
     | { state: "synced"; updatedAt: string | null }
     | { state: "error"; message: string }
   >({ state: "idle" });
+  const [previewVisibility, setPreviewVisibility] = useState(profile.visibility);
 
   const updateProfile = <K extends keyof ProfileFormState>(key: K, value: ProfileFormState[K]) => {
     setProfile((prev) => ({ ...prev, [key]: value }));
@@ -146,6 +147,11 @@ export default function ProfilePage() {
 
   const availabilityText = profile.availability.length ? profile.availability.join("・") : "未選択";
   const skillsText = profile.skillTags.length ? profile.skillTags.join("・") : "未選択";
+  const previewVisibilityLabel =
+    visibilityOptions.find((option) => option.value === previewVisibility)?.label ?? "公開設定が未選択です";
+  const isPreviewDifferent = previewVisibility !== profile.visibility;
+  const currentVisibilityLabel =
+    visibilityOptions.find((option) => option.value === profile.visibility)?.label ?? "公開設定が未選択です";
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -394,6 +400,10 @@ export default function ProfilePage() {
   }, [session?.user]);
 
   useEffect(() => {
+    setPreviewVisibility((current) => (current === profile.visibility ? current : profile.visibility));
+  }, [profile.visibility]);
+
+  useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
@@ -593,7 +603,6 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-white text-[#0b1f33]">
       <Header />
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-5 py-14">
-        <ContactNotificationsPanel />
 
         <section className="space-y-3">
           <h1 className="text-lg font-semibold">プロフィール設定</h1>
@@ -989,11 +998,27 @@ export default function ProfilePage() {
           </section>
 
           <section id="preview" className="space-y-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5">
-            <header className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">プレビュー</h2>
-              <span className="rounded-full bg-[color:var(--color-surface-2)] px-3 py-1 text-[10px] text-[color:var(--color-fg-muted)]">
-                保存前に表示内容を確認しましょう
-              </span>
+            <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-sm font-semibold">プレビュー</h2>
+                <span className="rounded-full bg-[color:var(--color-surface-2)] px-3 py-1 text-[10px] text-[color:var(--color-fg-muted)]">
+                  保存前に表示内容を確認しましょう
+                </span>
+              </div>
+              <label className="flex flex-col gap-1 text-[10px] text-[color:var(--color-fg-muted)] md:text-right">
+                <span className="uppercase tracking-wide">公開レベルを選択</span>
+                <select
+                  value={previewVisibility}
+                  onChange={(event) => setPreviewVisibility(event.target.value as ProfileFormState["visibility"])}
+                  className="rounded border border-[color:var(--color-border)] px-3 py-2 text-xs text-[#0b1f33]"
+                >
+                  {visibilityOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </header>
             <div className="space-y-3 text-[color:var(--color-fg-muted)]">
               <div className="flex items-center gap-3">
@@ -1029,14 +1054,34 @@ export default function ProfilePage() {
               </div>
               <div className="rounded-lg border border-[color:var(--color-border)] px-3 py-3 text-[11px]">
                 <p className="font-semibold text-[#0b1f33]">公開設定</p>
-                <p className="mt-1">
-                  {
-                    visibilityOptions.find((option) => option.value === profile.visibility)?.label ??
-                    "公開設定が未選択です"
-                  }
-                </p>
+                <p className="mt-1">{previewVisibilityLabel}</p>
+                {isPreviewDifferent && (
+                  <p className="mt-1 text-[color:var(--color-fg-muted)]">
+                    実際の公開設定: {currentVisibilityLabel}
+                  </p>
+                )}
               </div>
             </div>
+          </section>
+
+          <section className="space-y-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5">
+            <header className="space-y-1">
+              <h2 className="text-sm font-semibold">自己紹介の基本構成</h2>
+              <p className="text-[11px] text-[color:var(--color-fg-muted)]">
+                迷ったときはテンプレートに沿って書き出すと、伝えたいポイントを整理しやすくなります。
+              </p>
+            </header>
+            <ul className="space-y-2 text-[11px] text-[color:var(--color-fg-muted)]">
+              {basicProfileTemplate.map((item) => (
+                <li key={item} className="flex gap-2 rounded-lg border border-[color:var(--color-border)] bg-white px-3 py-2">
+                  <span className="font-semibold text-[#0b1f33]">・</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-[10px] text-[color:var(--color-fg-muted)]">
+              テンプレートに書き込んだ内容は、上のプレビューで確認しながら微調整できます。
+            </p>
           </section>
 
           <div className="flex flex-col items-end gap-2">
