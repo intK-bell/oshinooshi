@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
 import { getPostById } from "@/lib/postRepository";
 import { listContactsByPost } from "@/lib/postContactRepository";
-import { getLineFriendUrls } from "@/lib/profileRepository";
+import { getProfileBasics } from "@/lib/profileRepository";
 
 export async function GET(request: NextRequest, context: { params: Promise<{ postId: string }> }) {
   const session = await getServerSession(authOptions);
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pos
       ),
     );
 
-    const friendUrlMap = await getLineFriendUrls(uniqueUserIds);
+    const profileBasicsMap = await getProfileBasics(uniqueUserIds);
 
     const payload = relevantContacts.map((contact) => ({
       contactId: contact.contactId,
@@ -62,13 +62,13 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pos
       lineRequestUpdatedAt: contact.lineRequestUpdatedAt ?? null,
       sender: {
         userId: contact.senderUserId,
-        name: contact.senderName,
-        lineFriendUrl: friendUrlMap.get(contact.senderUserId) ?? null,
+        name: contact.senderName ?? profileBasicsMap.get(contact.senderUserId)?.displayName ?? null,
+        lineFriendUrl: profileBasicsMap.get(contact.senderUserId)?.lineFriendUrl ?? null,
       },
       recipient: {
         userId: contact.recipientUserId,
-        name: null,
-        lineFriendUrl: friendUrlMap.get(contact.recipientUserId) ?? null,
+        name: profileBasicsMap.get(contact.recipientUserId)?.displayName ?? null,
+        lineFriendUrl: profileBasicsMap.get(contact.recipientUserId)?.lineFriendUrl ?? null,
       },
       messages: contact.messages.map((message) => ({
         messageId: message.messageId,

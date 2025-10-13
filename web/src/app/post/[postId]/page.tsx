@@ -3,9 +3,8 @@ import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { Header } from "@/components/Header";
 import { PostInteractionPanel } from "@/components/PostInteractionPanel";
-import { AFFINITY_FACTORS } from "@/constants/affinitySurvey";
 import { authOptions } from "@/lib/authOptions";
-import { computeAffinityFactorScores, computeAffinitySimilarity, formatSimilarityPercentage, type AffinityAnswers } from "@/lib/affinitySimilarity";
+import { computeAffinitySimilarity, formatSimilarityPercentage, type AffinityAnswers } from "@/lib/affinitySimilarity";
 import { getAffinityAnswers } from "@/lib/profileRepository";
 import { getPublishedPostById } from "@/lib/postRepository";
 
@@ -59,8 +58,6 @@ export default async function PostDetailPage({ params }: PageProps) {
   }
 
   const affinitySimilarity = viewerAnswers && sellerAnswers ? computeAffinitySimilarity(viewerAnswers, sellerAnswers) : null;
-  const viewerFactorScores = viewerAnswers ? computeAffinityFactorScores(viewerAnswers) : null;
-  const sellerFactorScores = sellerAnswers ? computeAffinityFactorScores(sellerAnswers) : null;
   const similarityPercentage = formatSimilarityPercentage(affinitySimilarity);
   const similarityMessage = !viewerId
     ? "ログインして推し傾向アンケートに回答すると類似度が表示されます。"
@@ -69,13 +66,6 @@ export default async function PostDetailPage({ params }: PageProps) {
       : !sellerHasSurvey
         ? "出品者がアンケート未回答のため、類似度はまだ表示できません。"
         : "推し傾向アンケートの回答をもとに算出しています。";
-
-  const affinityRows = AFFINITY_FACTORS.map((factor) => ({
-    id: factor.id,
-    label: factor.label,
-    viewerScore: viewerFactorScores ? viewerFactorScores[factor.id] : null,
-    sellerScore: sellerFactorScores ? sellerFactorScores[factor.id] : null,
-  }));
 
   return (
     <div className="min-h-screen bg-white text-[#0b1f33]">
@@ -177,19 +167,6 @@ export default async function PostDetailPage({ params }: PageProps) {
                     <span className="text-[10px] text-[color:var(--color-fg-muted)]">一致度</span>
                   </div>
                   <p className="text-[10px] text-[color:var(--color-fg-muted)]">推し傾向アンケートの回答から算出しています。</p>
-                  <div className="space-y-2">
-                    {affinityRows.map((row) => (
-                      <div
-                        key={row.id}
-                        className="flex items-center justify-between rounded-lg bg-[color:var(--color-surface-2)] px-3 py-2 text-[10px]"
-                      >
-                        <span className="font-medium text-[#0b1f33]">{row.label}</span>
-                        <span>
-                          {formatFactorScore(row.viewerScore)} → {formatFactorScore(row.sellerScore)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
                 </>
               ) : (
                 <p className="text-[10px] leading-relaxed text-[color:var(--color-fg-muted)]">{similarityMessage}</p>
@@ -226,13 +203,4 @@ function formatDetailDate(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(parsed);
-}
-
-function formatFactorScore(score: number | null | undefined) {
-  if (typeof score !== "number" || Number.isNaN(score)) {
-    return "--";
-  }
-
-  const normalized = Math.round(((score + 1) / 2) * 100);
-  return `${normalized}%`;
 }

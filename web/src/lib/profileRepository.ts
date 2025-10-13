@@ -15,6 +15,7 @@ function requireClient() {
 
 type StoredProfileItem = {
   line_id: string;
+  display_name?: string;
   profile?: unknown;
   line_friend_url?: string;
   [key: string]: unknown;
@@ -98,23 +99,61 @@ export function extractLineFriendUrlFromRecord(record: StoredProfileItem | null 
   return null;
 }
 
-export async function getLineFriendUrls(lineIds: string[]): Promise<Map<string, string>> {
+export function extractDisplayNameFromRecord(record: StoredProfileItem | null | undefined): string | null {
+  if (!record) {
+    return null;
+  }
+
+  if (typeof record.display_name === "string" && record.display_name.trim().length > 0) {
+    return record.display_name.trim();
+  }
+
+  if (record.profile && typeof record.profile === "object") {
+    const profile = record.profile as Record<string, unknown>;
+    const candidates = [profile["displayName"], profile["name"], profile["display_name"]];
+    for (const value of candidates) {
+      if (typeof value === "string" && value.trim().length > 0) {
+        return value.trim();
+      }
+    }
+  }
+
+  return null;
+}
+
+export type ProfileBasicInfo = {
+  displayName: string | null;
+  lineFriendUrl: string | null;
+};
+
+export async function getProfileBasics(lineIds: string[]): Promise<Map<string, ProfileBasicInfo>> {
   const uniqueIds = Array.from(new Set(lineIds.filter((id): id is string => typeof id === "string" && id.length > 0)));
-  const result = new Map<string, string>();
+  const result = new Map<string, ProfileBasicInfo>();
 
   await Promise.all(
     uniqueIds.map(async (lineId) => {
       try {
         const record = await getProfileRecord(lineId);
-        const friendUrl = extractLineFriendUrlFromRecord(record);
-        if (friendUrl) {
-          result.set(lineId, friendUrl);
-        }
+        const displayName = extractDisplayNameFromRecord(record);
+        const lineFriendUrl = extractLineFriendUrlFromRecord(record);
+        result.set(lineId, { displayName, lineFriendUrl });
       } catch (error) {
-        console.warn(`Failed to fetch profile for friend URL (${lineId})`, error);
+        console.warn(`Failed to fetch profile basics (${lineId})`, error);
+        result.set(lineId, { displayName: null, lineFriendUrl: null });
       }
     }),
   );
 
+  return result;
+}
+
+export async function getLineFriendUrls(lineIds: string[]): Promise<Map<string, string>> {
+  const basics = await getProfileBasics(lineIds);
+  const result = new Map<string, string>();
+  basics.forEach((info, lineId) => {
+    if (info.lineFriendUrl) {
+      result.set(lineId, info.lineFriendUrl);
+    }
+  });
   return result;
 }

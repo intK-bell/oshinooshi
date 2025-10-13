@@ -29,7 +29,7 @@ function LoginButton() {
 function LogoutButton() {
   return (
     <button
-      onClick={() => signOut()}
+      onClick={() => signOut({ callbackUrl: "/api/auth/signin?callbackUrl=/" })}
       className="rounded-full border border-[color:var(--color-border)] px-4 py-2 text-xs font-medium transition hover:bg-[color:var(--color-surface-2)]"
     >
       ログアウト
@@ -40,11 +40,13 @@ function LogoutButton() {
 export function Header() {
   const { status } = useSession();
   const isAuthenticated = status === "authenticated";
-  const [hasPendingContacts, setHasPendingContacts] = useState<boolean | null>(null);
+  const [hasPendingChats, setHasPendingChats] = useState<boolean | null>(null);
+  const [hasPendingLineRequests, setHasPendingLineRequests] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) {
-      setHasPendingContacts(null);
+      setHasPendingChats(null);
+      setHasPendingLineRequests(null);
       return;
     }
 
@@ -55,19 +57,46 @@ export function Header() {
     let isActive = true;
     let abortController = new AbortController();
 
+    type NotificationContact = {
+      status?: string;
+      lineRequestStatus?: string | null;
+      viewerRole?: "sender" | "recipient";
+    };
+
+    const deriveLineStatus = (contact: NotificationContact): string => {
+      const raw = typeof contact.lineRequestStatus === "string" ? contact.lineRequestStatus : null;
+      if (raw === "pending_sender" || raw === "pending_recipient" || raw === "accepted" || raw === "declined") {
+        return raw;
+      }
+      if (contact.status === "declined") {
+        return "declined";
+      }
+      if (contact.status === "accepted" || contact.status === "pending") {
+        return contact.viewerRole === "sender" ? "pending_sender" : "pending_recipient";
+      }
+      return "accepted";
+    };
+
     const fetchNotifications = async (signal: AbortSignal) => {
       try {
         const params = new URLSearchParams({
-          status: "pending",
-          limit: "1",
+          role: "all",
+          limit: "50",
         });
         const response = await fetch(`/api/contacts?${params.toString()}`, { signal });
         if (!response.ok) {
           throw new Error(`Failed to load notifications: ${response.status}`);
         }
-        const data = (await response.json()) as { contacts?: unknown[] };
+        const data = (await response.json()) as { contacts?: NotificationContact[] };
         if (!signal.aborted && isActive) {
-          setHasPendingContacts(Array.isArray(data.contacts) && data.contacts.length > 0);
+          const contacts = Array.isArray(data.contacts) ? data.contacts : [];
+          const pendingChat = contacts.some((contact) => contact.status === "pending");
+          const pendingLine = contacts.some((contact) => {
+            const lineStatus = deriveLineStatus(contact);
+            return lineStatus === "pending_sender" || lineStatus === "pending_recipient";
+          });
+          setHasPendingChats(pendingChat);
+          setHasPendingLineRequests(pendingLine);
         }
       } catch (error) {
         if (signal.aborted) {
@@ -75,7 +104,8 @@ export function Header() {
         }
         console.error("Failed to check pending contact notifications", error);
         if (isActive) {
-          setHasPendingContacts(false);
+          setHasPendingChats(false);
+          setHasPendingLineRequests(false);
         }
       }
     };
@@ -117,7 +147,9 @@ export function Header() {
         {isAuthenticated ? (
           <nav className="hidden gap-5 text-xs font-medium text-[color:var(--color-fg-muted)] md:flex">
             {authenticatedNavLinks.map((link) => {
-              const showBadge = link.href === "/profile" && hasPendingContacts;
+              const showBadge =
+                (link.href === "/conversations" && hasPendingChats) ||
+                (link.href === "/line-requests" && hasPendingLineRequests);
               return (
                 <span key={link.href} className="relative">
                   <Link href={link.href} className="hover:text-[color:var(--color-accent-emerald-ink)]">

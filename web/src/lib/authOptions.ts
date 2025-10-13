@@ -35,10 +35,6 @@ function extractLineFriendUrl(profile?: LineProfile): string | undefined {
     }
   }
 
-  if (profile.sub && profile.sub.trim().length > 0) {
-    return `https://line.me/R/ti/p/${profile.sub}`;
-  }
-
   return undefined;
 }
 
