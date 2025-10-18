@@ -168,20 +168,40 @@ function ConversationsPageContent() {
     return sorted;
   }, [contacts, activeTab]);
 
+  const resetDetailStateForSelection = useCallback((nextId: string | null) => {
+    setDetailState((prev) => {
+      if (prev.status === "idle") {
+        return prev;
+      }
+      if ("contactId" in prev && prev.contactId !== nextId) {
+        return { status: "idle" };
+      }
+      return prev;
+    });
+  }, []);
+
   useEffect(() => {
     if (activeTab === "pending") {
-      setSelectedContactId(null);
+      if (selectedContactId !== null) {
+        setSelectedContactId(null);
+        resetDetailStateForSelection(null);
+      }
       return;
     }
     if (filteredContacts.length === 0) {
-      setSelectedContactId(null);
+      if (selectedContactId !== null) {
+        setSelectedContactId(null);
+        resetDetailStateForSelection(null);
+      }
       return;
     }
     if (selectedContactId && filteredContacts.some((contact) => contact.contactId === selectedContactId)) {
       return;
     }
-    setSelectedContactId(filteredContacts[0]?.contactId ?? null);
-  }, [filteredContacts, selectedContactId, activeTab]);
+    const nextId = filteredContacts[0]?.contactId ?? null;
+    setSelectedContactId(nextId);
+    resetDetailStateForSelection(nextId);
+  }, [filteredContacts, selectedContactId, activeTab, resetDetailStateForSelection]);
 
   const loadConversationDetail = useCallback(
     async (contact: ContactListItem) => {
@@ -223,6 +243,10 @@ function ConversationsPageContent() {
   );
 
   useEffect(() => {
+    if (activeTab === "pending") {
+      setDetailState({ status: "idle" });
+      return;
+    }
     if (!selectedContactId) {
       setDetailState({ status: "idle" });
       return;
@@ -235,7 +259,7 @@ function ConversationsPageContent() {
     loadConversationDetail(target).catch(() => {
       // handled in loadConversationDetail
     });
-  }, [contacts, selectedContactId, loadConversationDetail]);
+  }, [contacts, selectedContactId, loadConversationDetail, activeTab]);
 
   useEffect(() => {
     if (initialSelectionHandled) {
@@ -326,6 +350,7 @@ function ConversationsPageContent() {
 
   const handleSelectContact = (contactId: string) => {
     setSelectedContactId(contactId);
+    resetDetailStateForSelection(contactId);
   };
 
   const handleSendMessage = async () => {
@@ -608,6 +633,76 @@ function ConversationsPageContent() {
               () => setCounterPendingPage((page) => Math.min(page + 1, counterpartTotalPages)),
             )}
         </section>
+      </div>
+    );
+  };
+
+  const renderDeclinedList = () => {
+    if (declinedContacts.length === 0) {
+      return (
+        <div className="rounded-2xl border border-[color:var(--color-border)] bg-white p-6 text-xs text-[color:var(--color-fg-muted)]">
+          辞退済みのリクエストはありません。
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {declinedContacts.map((contact) => {
+          const counterpartName = resolveCounterpartName(contact);
+          const postTitle = contact.post?.title ?? "投稿";
+          const imageUrl = contact.post?.images?.[0] ?? null;
+          const groupLabel = contact.post?.group ?? null;
+          const updatedLabel = contact.updatedAt
+            ? new Date(contact.updatedAt).toLocaleString("ja-JP", {
+                month: "numeric",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : "日時不明";
+
+          return (
+            <article
+              key={`declined-${contact.contactId}`}
+              className="flex flex-col gap-3 rounded-2xl border border-[color:var(--color-border)] bg-white p-4 text-xs text-[color:var(--color-fg-muted)]"
+            >
+              <div className="flex items-start gap-3">
+                <div className="h-16 w-16 overflow-hidden rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface-2)]">
+                  {imageUrl ? (
+                    <img src={imageUrl} alt={`${postTitle} の画像`} className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-[10px] text-[color:var(--color-fg-muted)]">
+                      No Image
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 space-y-2">
+                  <div className="flex flex-col gap-1">
+                    <h3 className="text-sm font-semibold text-[#0b1f33]">{postTitle}</h3>
+                    <p className="text-[11px] text-[color:var(--color-fg-muted)]">相手: {counterpartName}</p>
+                    <p className="text-[10px] text-[color:var(--color-fg-muted)]">辞退日時: {updatedLabel}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-[10px] text-[color:var(--color-fg-muted)]">
+                    <span className="rounded-full bg-[color:var(--color-surface-2)] px-2 py-1">同種交換</span>
+                    <span className="rounded-full bg-[color:var(--color-surface-2)] px-2 py-1">ステータス: 辞退済み</span>
+                    {groupLabel && (
+                      <span className="rounded-full bg-[color:var(--color-surface-2)] px-2 py-1">{groupLabel}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href={`/post/${contact.postId}`}
+                  className="inline-flex items-center gap-2 rounded-full border border-[color:var(--color-border)] px-3 py-1 text-[10px] text-[#0b1f33] transition hover:bg-[color:var(--color-surface-2)]"
+                >
+                  投稿ページを開く
+                </Link>
+              </div>
+            </article>
+          );
+        })}
       </div>
     );
   };
@@ -981,37 +1076,57 @@ function ConversationsPageContent() {
   );
   const pendingHasNotification = pendingCount > 0;
 
+  const declinedContacts = useMemo(() => {
+    const declined = contacts.filter((contact) => contact.status === "declined");
+    declined.sort((a, b) => {
+      const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      return timeB - timeA;
+    });
+    return declined;
+  }, [contacts]);
+
+  const handleTabChange = useCallback(
+    (nextTab: "accepted" | "pending" | "declined") => {
+      setActiveTab(nextTab);
+      if (nextTab === "pending") {
+        setSelectedContactId(null);
+        resetDetailStateForSelection(null);
+        setSelfPendingPage(1);
+        setCounterPendingPage(1);
+        return;
+      }
+
+      const nextContacts = contacts.filter((contact) => contact.status === nextTab);
+      const nextId = nextContacts[0]?.contactId ?? null;
+      setSelectedContactId(nextId);
+      resetDetailStateForSelection(nextId);
+    },
+    [contacts, resetDetailStateForSelection],
+  );
+
   useEffect(() => {
-    if (activeTab === "accepted" && acceptedCount === 0) {
-      if (pendingCount > 0) {
-        setActiveTab("pending");
-        return;
-      }
-      if (declinedCount > 0) {
-        setActiveTab("declined");
-        return;
-      }
+    if (activeTab === "pending") {
+      setSelectedContactId(null);
+      resetDetailStateForSelection(null);
+      return;
     }
-    if (activeTab === "pending" && pendingCount === 0) {
-      if (acceptedCount > 0) {
-        setActiveTab("accepted");
-        return;
-      }
-      if (declinedCount > 0) {
-        setActiveTab("declined");
-        return;
-      }
+
+    const currentContacts = contacts.filter((contact) => contact.status === activeTab);
+    if (currentContacts.length === 0) {
+      setSelectedContactId(null);
+      resetDetailStateForSelection(null);
+      return;
     }
-    if (activeTab === "declined" && declinedCount === 0) {
-      if (acceptedCount > 0) {
-        setActiveTab("accepted");
-        return;
-      }
-      if (pendingCount > 0) {
-        setActiveTab("pending");
-      }
+
+    if (selectedContactId && currentContacts.some((contact) => contact.contactId === selectedContactId)) {
+      return;
     }
-  }, [activeTab, acceptedCount, pendingCount, declinedCount]);
+
+    const nextId = currentContacts[0].contactId;
+    setSelectedContactId(nextId);
+    resetDetailStateForSelection(nextId);
+  }, [contacts, activeTab, selectedContactId, resetDetailStateForSelection]);
 
   return (
     <div className="min-h-screen bg-white text-[#0b1f33]">
@@ -1038,10 +1153,10 @@ function ConversationsPageContent() {
                         : declinedCount;
                   const showBadge = tab.value === "pending" && pendingHasNotification;
                   return (
-                    <button
-                      key={`tab-${tab.value}`}
-                      type="button"
-                      onClick={() => setActiveTab(tab.value)}
+                  <button
+                    key={`tab-${tab.value}`}
+                    type="button"
+                    onClick={() => handleTabChange(tab.value)}
                       className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[11px] ${
                         isActive
                           ? "border-[color:var(--color-accent-emerald)] bg-[color:var(--color-accent-emerald)]/10 text-[color:var(--color-accent-emerald-ink)]"
@@ -1060,7 +1175,7 @@ function ConversationsPageContent() {
               </p>
             </div>
 
-            {activeTab !== "pending" && (
+            {activeTab === "accepted" && (
               <label className="flex flex-col gap-1">
                 <span className="text-[10px] uppercase tracking-wide text-[color:var(--color-fg-muted)]">
                   リクエスト
@@ -1090,7 +1205,11 @@ function ConversationsPageContent() {
             )}
           </article>
 
-          {activeTab === "pending" ? renderPendingSections() : renderDetail()}
+          {activeTab === "pending"
+            ? renderPendingSections()
+            : activeTab === "declined"
+              ? renderDeclinedList()
+              : renderDetail()}
         </section>
       </main>
     </div>
