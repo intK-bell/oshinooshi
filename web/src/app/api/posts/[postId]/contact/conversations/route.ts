@@ -58,17 +58,13 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pos
       type: contact.type,
       createdAt: contact.createdAt,
       updatedAt: contact.updatedAt,
-      lineRequestStatus: contact.lineRequestStatus ?? null,
-      lineRequestUpdatedAt: contact.lineRequestUpdatedAt ?? null,
       sender: {
         userId: contact.senderUserId,
         name: contact.senderName ?? profileBasicsMap.get(contact.senderUserId)?.displayName ?? null,
-        lineFriendUrl: profileBasicsMap.get(contact.senderUserId)?.lineFriendUrl ?? null,
       },
       recipient: {
         userId: contact.recipientUserId,
         name: profileBasicsMap.get(contact.recipientUserId)?.displayName ?? null,
-        lineFriendUrl: profileBasicsMap.get(contact.recipientUserId)?.lineFriendUrl ?? null,
       },
       messages: contact.messages.map((message) => ({
         messageId: message.messageId,

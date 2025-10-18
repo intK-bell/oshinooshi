@@ -61,6 +61,19 @@ export default function NewPostPage() {
       return;
     }
 
+    const normalizedGroup = group.trim();
+    const normalizedTitle = title.trim();
+
+    if (normalizedGroup.length === 0) {
+      setErrorMessage("推し・グループを入力してください。");
+      return;
+    }
+
+    if (normalizedTitle.length === 0) {
+      setErrorMessage("シリーズ名を入力してください。");
+      return;
+    }
+
     if (normalizedCategories.length === 0) {
       setErrorMessage("グッズ種別を入力してください。");
       return;
@@ -76,8 +89,8 @@ export default function NewPostPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          group: group.trim().length > 0 ? group.trim() : null,
-          title,
+          group: normalizedGroup,
+          title: normalizedTitle,
           categories: normalizedCategories,
           body,
           status,

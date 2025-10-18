@@ -23,6 +23,7 @@
 | `POST_MEDIA_TABLE` | DynamoDB table name | `oshinooshi-post-media-stg` | Tracks versions & status |
 | `EVENT_BUS_NAME` | EventBridge bus | `oshinooshi-stg` | For moderation state events |
 | `METRICS_NAMESPACE` | CloudWatch metrics namespace | `OshinoOshi/Moderation` | Consistent across envs |
+| `OPENAI_API_KEY` | OpenAI API credential | Secrets Manager | Required for AI suggestion endpoint |
 
 ## Notes
 - Secrets Manager values referenced above should be granted via IAM policy to the Lambda execution role only.

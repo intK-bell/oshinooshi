@@ -70,35 +70,6 @@ export async function getAffinityAnswers(lineId: string): Promise<AffinityAnswer
   return extractAffinityAnswersFromProfile(record.profile);
 }
 
-export function extractLineFriendUrlFromRecord(record: StoredProfileItem | null | undefined): string | null {
-  if (!record) {
-    return null;
-  }
-
-  if (typeof record.line_friend_url === "string" && record.line_friend_url.trim().length > 0) {
-    return record.line_friend_url.trim();
-  }
-
-  if (record.profile && typeof record.profile === "object") {
-    const profile = record.profile as Record<string, unknown>;
-    const candidates = [
-      profile["lineFriendUrl"],
-      profile["friendUrl"],
-      profile["friend_url"],
-      profile["addFriendUrl"],
-      profile["add_friend_url"],
-    ];
-
-    for (const value of candidates) {
-      if (typeof value === "string" && value.trim().length > 0) {
-        return value.trim();
-      }
-    }
-  }
-
-  return null;
-}
-
 export function extractDisplayNameFromRecord(record: StoredProfileItem | null | undefined): string | null {
   if (!record) {
     return null;
@@ -123,7 +94,6 @@ export function extractDisplayNameFromRecord(record: StoredProfileItem | null | 
 
 export type ProfileBasicInfo = {
   displayName: string | null;
-  lineFriendUrl: string | null;
 };
 
 export async function getProfileBasics(lineIds: string[]): Promise<Map<string, ProfileBasicInfo>> {
@@ -135,25 +105,13 @@ export async function getProfileBasics(lineIds: string[]): Promise<Map<string, P
       try {
         const record = await getProfileRecord(lineId);
         const displayName = extractDisplayNameFromRecord(record);
-        const lineFriendUrl = extractLineFriendUrlFromRecord(record);
-        result.set(lineId, { displayName, lineFriendUrl });
+        result.set(lineId, { displayName });
       } catch (error) {
         console.warn(`Failed to fetch profile basics (${lineId})`, error);
-        result.set(lineId, { displayName: null, lineFriendUrl: null });
+        result.set(lineId, { displayName: null });
       }
     }),
   );
 
-  return result;
-}
-
-export async function getLineFriendUrls(lineIds: string[]): Promise<Map<string, string>> {
-  const basics = await getProfileBasics(lineIds);
-  const result = new Map<string, string>();
-  basics.forEach((info, lineId) => {
-    if (info.lineFriendUrl) {
-      result.set(lineId, info.lineFriendUrl);
-    }
-  });
   return result;
 }

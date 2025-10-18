@@ -81,7 +81,7 @@ export default function EditPostPage({ params }: EditPostPageProps) {
 
         const loaded = data.post;
         setStatus(loaded.status === "published" ? "published" : "draft");
-        setGroup(loaded.group ?? "");
+        setGroup((loaded.group ?? "").trim());
         setTitle(loaded.title ?? "");
         setBody(loaded.body ?? "");
         setCategoriesInput(Array.isArray(loaded.categories) ? loaded.categories.join("\n") : "");
@@ -141,8 +141,16 @@ export default function EditPostPage({ params }: EditPostPageProps) {
       return;
     }
 
-    if (title.trim().length === 0) {
-      setErrorMessage("タイトルを入力してください。");
+    const normalizedGroup = group.trim();
+    const normalizedTitle = title.trim();
+
+    if (normalizedGroup.length === 0) {
+      setErrorMessage("推し・グループを入力してください。");
+      return;
+    }
+
+    if (normalizedTitle.length === 0) {
+      setErrorMessage("シリーズ名を入力してください。");
       return;
     }
 
@@ -176,8 +184,8 @@ export default function EditPostPage({ params }: EditPostPageProps) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          group: group.trim().length > 0 ? group.trim() : null,
-          title,
+          group: normalizedGroup,
+          title: normalizedTitle,
           categories: normalizedCategories,
           body,
           status: targetStatus,
@@ -195,7 +203,7 @@ export default function EditPostPage({ params }: EditPostPageProps) {
 
       const updated = data.post;
       setStatus(updated.status === "published" ? "published" : "draft");
-      setGroup(updated.group ?? "");
+      setGroup((updated.group ?? "").trim());
       setTitle(updated.title ?? "");
       setBody(updated.body ?? "");
       setCategoriesInput(Array.isArray(updated.categories) ? updated.categories.join("\n") : "");

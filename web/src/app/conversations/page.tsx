@@ -13,18 +13,14 @@ type ContactListItem = {
   type: "chat" | "request";
   status: string;
   message: string | null;
-  lineRequestStatus?: string | null;
-  lineRequestUpdatedAt?: string | null;
   sender: {
     userId: string;
     name: string | null;
     uuid?: string | null;
-    lineFriendUrl?: string | null;
   };
   recipient: {
     userId: string;
     name?: string | null;
-    lineFriendUrl?: string | null;
   };
   createdAt: string | null;
   updatedAt: string | null;
@@ -76,12 +72,10 @@ type ConversationDetail = {
   sender: {
     userId: string;
     name: string | null;
-    lineFriendUrl?: string | null;
   };
   recipient: {
     userId: string;
     name: string | null;
-    lineFriendUrl?: string | null;
   };
   messages: ConversationMessage[];
 };
@@ -104,17 +98,11 @@ type ContactsResponse = {
   error?: string;
 };
 
-const STATUS_FILTERS: Array<{ value: "pending" | "accepted" | "declined"; label: string }> = [
-  { value: "pending", label: "承認待ち" },
+const TAB_ORDER: Array<{ value: "accepted" | "pending" | "declined"; label: string }> = [
   { value: "accepted", label: "承認済み" },
+  { value: "pending", label: "承認待ち" },
   { value: "declined", label: "辞退済み" },
 ];
-
-const STATUS_ORDER: Record<string, number> = {
-  pending: 0,
-  accepted: 1,
-  declined: 2,
-};
 
 const PENDING_PAGE_SIZE = 5;
 
@@ -126,7 +114,7 @@ function ConversationsPageContent() {
   const [listState, setListState] = useState<ContactListState>({ status: "loading" });
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [detailState, setDetailState] = useState<ConversationDetailState>({ status: "idle" });
-  const [filter, setFilter] = useState<(typeof STATUS_FILTERS)[number]["value"]>("pending");
+  const [activeTab, setActiveTab] = useState<"accepted" | "pending" | "declined">("accepted");
   const [messageDrafts, setMessageDrafts] = useState<Record<string, string>>({});
   const [isSending, setIsSending] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
@@ -171,22 +159,17 @@ function ConversationsPageContent() {
   );
 
   const filteredContacts = useMemo(() => {
-    const filtered = contacts.filter((contact) => contact.status === filter);
+    const filtered = contacts.filter((contact) => contact.status === activeTab);
     const sorted = [...filtered].sort((a, b) => {
-      const orderA = STATUS_ORDER[a.status] ?? 99;
-      const orderB = STATUS_ORDER[b.status] ?? 99;
-      if (orderA !== orderB) {
-        return orderA - orderB;
-      }
       const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
       const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
       return timeB - timeA;
     });
     return sorted;
-  }, [contacts, filter]);
+  }, [contacts, activeTab]);
 
   useEffect(() => {
-    if (filter === "pending") {
+    if (activeTab === "pending") {
       setSelectedContactId(null);
       return;
     }
@@ -198,7 +181,7 @@ function ConversationsPageContent() {
       return;
     }
     setSelectedContactId(filteredContacts[0]?.contactId ?? null);
-  }, [filteredContacts, selectedContactId, filter]);
+  }, [filteredContacts, selectedContactId, activeTab]);
 
   const loadConversationDetail = useCallback(
     async (contact: ContactListItem) => {
@@ -315,21 +298,21 @@ function ConversationsPageContent() {
   );
 
   useEffect(() => {
-    if (filter === "pending") {
+    if (activeTab === "pending") {
       setSelfPendingPage(1);
       setCounterPendingPage(1);
     }
-  }, [filter]);
+  }, [activeTab]);
 
   useEffect(() => {
-    if (filter !== "pending") {
+    if (activeTab !== "pending") {
       return;
     }
     const selfMax = Math.max(1, Math.ceil(pendingNeedsMyAction.length / PENDING_PAGE_SIZE) || 1);
     const counterpartMax = Math.max(1, Math.ceil(pendingWaitingForCounterpart.length / PENDING_PAGE_SIZE) || 1);
     setSelfPendingPage((prev) => Math.min(Math.max(prev, 1), selfMax));
     setCounterPendingPage((prev) => Math.min(Math.max(prev, 1), counterpartMax));
-  }, [filter, pendingNeedsMyAction.length, pendingWaitingForCounterpart.length]);
+  }, [activeTab, pendingNeedsMyAction.length, pendingWaitingForCounterpart.length]);
 
   const paginatedPendingNeedsMyAction = useMemo(() => {
     const start = (selfPendingPage - 1) * PENDING_PAGE_SIZE;
@@ -768,7 +751,7 @@ function ConversationsPageContent() {
           </div>
         );
       }
-      if (filter !== "pending" && filteredContacts.length === 0) {
+      if (activeTab !== "pending" && filteredContacts.length === 0) {
         return (
           <div className="rounded-2xl border border-[color:var(--color-border)] bg-white p-6 text-xs text-[color:var(--color-fg-muted)]">
             該当するリクエストがありません。
@@ -847,11 +830,6 @@ function ConversationsPageContent() {
       return timeA - timeB;
     });
 
-    const counterpartLineFriendUrl =
-      selectedContactSummary.viewerRole === "sender"
-        ? selectedContactSummary.recipient.lineFriendUrl ?? null
-        : selectedContactSummary.sender.lineFriendUrl ?? null;
-
     return (
       <div className="space-y-6">
         {renderPostCard()}
@@ -908,9 +886,7 @@ function ConversationsPageContent() {
           <section className="space-y-4 rounded-2xl border border-[color:var(--color-border)] bg-white p-5 text-xs text-[color:var(--color-fg-muted)]">
             <header className="space-y-1">
               <h3 className="text-sm font-semibold text-[#0b1f33]">チャット申請は承認待ちです</h3>
-              <p>
-                承認が完了するとチャットが開き、ここにメッセージ履歴が表示されます。専用ページでステータスをご確認ください。
-              </p>
+              <p>承認が完了するとチャットが開き、ここにメッセージ履歴が表示されます。この画面でステータスをご確認ください。</p>
             </header>
             <div className="flex justify-end">
               <Link
@@ -969,25 +945,7 @@ function ConversationsPageContent() {
                   placeholder={`${counterpartName} へのメッセージを入力`}
                   className="w-full rounded border border-[color:var(--color-border)] px-3 py-2 text-xs"
                 />
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex flex-wrap gap-2">
-                    <Link
-                      href={`/line-requests?contactId=${selectedContactSummary.contactId}`}
-                      className="inline-flex w-fit items-center gap-2 rounded-full border border-[color:var(--color-border)] px-3 py-1 text-[10px] text-[#0b1f33] transition hover:bg-[color:var(--color-surface-2)]"
-                    >
-                      LINE友達を申請
-                    </Link>
-                    {conversationDetail.status === "accepted" && counterpartLineFriendUrl && (
-                      <a
-                        href={counterpartLineFriendUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex w-fit items-center gap-2 rounded-full border border-[color:var(--color-accent-emerald)] px-3 py-1 text-[10px] font-semibold text-[color:var(--color-accent-emerald-ink)] transition hover:bg-[color:var(--color-accent-emerald)]/20"
-                      >
-                        LINEでお友達になる
-                      </a>
-                    )}
-                  </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
                   <button
                     type="button"
                     onClick={handleSendMessage}
@@ -1021,6 +979,39 @@ function ConversationsPageContent() {
     () => contacts.filter((contact) => contact.status === "declined").length,
     [contacts],
   );
+  const pendingHasNotification = pendingCount > 0;
+
+  useEffect(() => {
+    if (activeTab === "accepted" && acceptedCount === 0) {
+      if (pendingCount > 0) {
+        setActiveTab("pending");
+        return;
+      }
+      if (declinedCount > 0) {
+        setActiveTab("declined");
+        return;
+      }
+    }
+    if (activeTab === "pending" && pendingCount === 0) {
+      if (acceptedCount > 0) {
+        setActiveTab("accepted");
+        return;
+      }
+      if (declinedCount > 0) {
+        setActiveTab("declined");
+        return;
+      }
+    }
+    if (activeTab === "declined" && declinedCount === 0) {
+      if (acceptedCount > 0) {
+        setActiveTab("accepted");
+        return;
+      }
+      if (pendingCount > 0) {
+        setActiveTab("pending");
+      }
+    }
+  }, [activeTab, acceptedCount, pendingCount, declinedCount]);
 
   return (
     <div className="min-h-screen bg-white text-[#0b1f33]">
@@ -1035,58 +1026,71 @@ function ConversationsPageContent() {
 
         <section className="space-y-6">
           <article className="space-y-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5 text-xs text-[color:var(--color-fg-muted)]">
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="flex flex-col gap-1">
-                <span className="text-[10px] uppercase tracking-wide text-[color:var(--color-fg-muted)]">ステータス</span>
-                <select
-                  value={filter}
-                  onChange={(event) => setFilter(event.target.value as (typeof STATUS_FILTERS)[number]["value"])}
-                  className="rounded border border-[color:var(--color-border)] px-3 py-2 text-xs"
-                >
-                  {STATUS_FILTERS.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              {filter !== "pending" && (
-                <label className="flex flex-col gap-1">
-                  <span className="text-[10px] uppercase tracking-wide text-[color:var(--color-fg-muted)]">
-                    リクエスト
-                  </span>
-                  <select
-                    value={selectedContactId ?? ""}
-                    onChange={(event) => handleSelectContact(event.target.value)}
-                    className="rounded border border-[color:var(--color-border)] px-3 py-2 text-xs"
-                  >
-                    {filteredContacts.length === 0 ? (
-                      <option value="" disabled>
-                        対象のリクエストがありません
-                      </option>
-                    ) : (
-                      filteredContacts.map((contact) => {
-                        const counterpartName = resolveCounterpartName(contact);
-                        const postTitle = contact.post?.title ?? `投稿ID: ${contact.postId}`;
-                        return (
-                          <option key={contact.contactId} value={contact.contactId}>
-                            {`${counterpartName} ／ ${postTitle}`}
-                          </option>
-                        );
-                      })
-                    )}
-                  </select>
-                </label>
-              )}
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                {TAB_ORDER.map((tab) => {
+                  const isActive = activeTab === tab.value;
+                  const count =
+                    tab.value === "accepted"
+                      ? acceptedCount
+                      : tab.value === "pending"
+                        ? pendingCount
+                        : declinedCount;
+                  const showBadge = tab.value === "pending" && pendingHasNotification;
+                  return (
+                    <button
+                      key={`tab-${tab.value}`}
+                      type="button"
+                      onClick={() => setActiveTab(tab.value)}
+                      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[11px] ${
+                        isActive
+                          ? "border-[color:var(--color-accent-emerald)] bg-[color:var(--color-accent-emerald)]/10 text-[color:var(--color-accent-emerald-ink)]"
+                          : "border-[color:var(--color-border)] text-[#0b1f33] hover:bg-[color:var(--color-surface-2)]"
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                      <span className="text-[color:var(--color-fg-muted)]">{count}</span>
+                      {showBadge ? <span className="h-2 w-2 rounded-full bg-[#f97316]" aria-hidden="true" /> : null}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-[color:var(--color-fg-muted)]">
+                承認済み {acceptedCount} 件／承認待ち {pendingCount} 件／辞退済み {declinedCount} 件
+              </p>
             </div>
 
-            <p className="text-[10px] text-[color:var(--color-fg-muted)]">
-              承認待ち {pendingCount} 件／承認済み {acceptedCount} 件／辞退済み {declinedCount} 件
-            </p>
+            {activeTab !== "pending" && (
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] uppercase tracking-wide text-[color:var(--color-fg-muted)]">
+                  リクエスト
+                </span>
+                <select
+                  value={selectedContactId ?? ""}
+                  onChange={(event) => handleSelectContact(event.target.value)}
+                  className="rounded border border-[color:var(--color-border)] px-3 py-2 text-xs"
+                >
+                  {filteredContacts.length === 0 ? (
+                    <option value="" disabled>
+                      対象のリクエストがありません
+                    </option>
+                  ) : (
+                    filteredContacts.map((contact) => {
+                      const counterpartName = resolveCounterpartName(contact);
+                      const postTitle = contact.post?.title ?? `投稿ID: ${contact.postId}`;
+                      return (
+                        <option key={contact.contactId} value={contact.contactId}>
+                          {`${counterpartName} ／ ${postTitle}`}
+                        </option>
+                      );
+                    })
+                  )}
+                </select>
+              </label>
+            )}
           </article>
 
-          {filter === "pending" ? renderPendingSections() : renderDetail()}
+          {activeTab === "pending" ? renderPendingSections() : renderDetail()}
         </section>
       </main>
     </div>

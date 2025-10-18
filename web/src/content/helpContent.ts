@@ -66,14 +66,14 @@ export const usageFlowSteps: UsageFlowStep[] = [
     anchor: "#guide-chat",
   },
   {
-    title: "LINE友だちリクエスト",
-    summary: "マッチ後はLINEで友だちになり、次の段取りを共有します。",
-    anchor: "#guide-line-request",
+    title: "チャットで段取り調整",
+    summary: "承認後のチャットで配送方法や日程をすり合わせます。",
+    anchor: "#guide-coordination",
   },
   {
-    title: "LINE上で交換のやりとり",
-    summary: "匿名配送の手順や受け渡し方法を確認しながら、交換内容を確定します。",
-    anchor: "#guide-line-communication",
+    title: "受け渡し・配送",
+    summary: "匿名配送の手順や当日の動きをチャットで共有しながら進めます。",
+    anchor: "#guide-fulfillment",
   },
   {
     title: "評価",
@@ -124,19 +124,19 @@ export const stepGuides: StepGuide[] = [
     ],
   },
   {
-    key: "guide-line-request",
-    title: "LINEお友だちのガイド",
-    intro: "マッチ成立後はLINEで友だちになり、匿名配送の有無に関わらずここで詳細を詰めます。",
+    key: "guide-coordination",
+    title: "チャット調整のガイド",
+    intro: "チャットが承認されたら、アプリ内の会話で取引の段取りを整理しましょう。",
     bullets: [
-      "LINE IDを交換する際は、相手のプロフィール名と一致しているか確認しましょう",
-      "初回メッセージで取引内容・希望スケジュール・連絡手段を再確認します",
+      "最初の返信で取引内容・数量・希望スケジュールをまとめて共有するとスムーズです",
+      "発送先や受け渡し場所など重要事項はチャットに残しておくと記録になります",
       "必要に応じてテンプレートメッセージを用意しておくとやり取りが楽になります",
     ],
   },
   {
-    key: "guide-line-communication",
-    title: "LINE上で交換のやりとり",
-    intro: "匿名配送や手渡しの調整、入金タイミングなど大事な事項はLINEで明文化しておきましょう。",
+    key: "guide-fulfillment",
+    title: "受け渡し・配送のガイド",
+    intro: "匿名配送や手渡しの調整、入金タイミングなど大事な事項はチャットで明文化しておきましょう。",
     bullets: [
       "発送方法・伝票番号・受け取り日時などはメッセージで共有して証跡を残します",
       "匿名配送を利用する場合は公式ガイドを参照し、不明点は事前に確認しましょう",
@@ -154,7 +154,7 @@ export const stepGuides: StepGuide[] = [
     bullets: [
       "スムーズだった点や助かったポイントを具体的に記入すると喜ばれます",
       "改善してほしい点があれば丁寧な言葉で共有し、トラブルはサポートに相談してください",
-      "取引が終わったらLINEは必要に応じて友だち解除・ブロックし、次の取引に備えましょう",
+      "取引が終わったら不要な個人情報は整理し、次の取引に備えましょう",
     ],
   },
 ];

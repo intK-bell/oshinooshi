@@ -156,19 +156,23 @@ export async function PATCH(
     typeof body.title === "string" ? body.title.trim() : (typeof post.title === "string" ? post.title : "");
 
   const normalizedCategories = Array.isArray(body.categories)
-    ? body.categories.filter((value): value is string => typeof value === "string")
+    ? body.categories
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .filter((value) => value.length > 0)
     : Array.isArray(post.categories)
-      ? (post.categories as string[])
+      ? (post.categories as unknown[])
+          .map((value) => (typeof value === "string" ? value.trim() : ""))
+          .filter((value): value is string => value.length > 0)
       : [];
 
   const normalizedBody = typeof body.body === "string" ? body.body.trim() : typeof post.body === "string" ? post.body : "";
 
   const normalizedGroup =
-    body.group === null
-      ? null
-      : typeof body.group === "string"
-        ? body.group
-        : (typeof post.group === "string" ? post.group : null);
+    typeof body.group === "string"
+      ? body.group.trim()
+      : typeof post.group === "string"
+        ? (post.group as string).trim()
+        : "";
 
   const normalizedImages = Array.isArray(body.images)
     ? body.images.filter((value): value is string => typeof value === "string")
@@ -181,7 +185,9 @@ export async function PATCH(
         .map((value) => (typeof value === "string" ? value.trim() : ""))
         .filter((value) => value.length > 0)
     : Array.isArray(post.have_members)
-      ? (post.have_members as string[])
+      ? (post.have_members as unknown[])
+          .map((value) => (typeof value === "string" ? value.trim() : ""))
+          .filter((value): value is string => value.length > 0)
       : [];
 
   const normalizedWantMembers = Array.isArray(body.wantMembers)
@@ -189,7 +195,9 @@ export async function PATCH(
         .map((value) => (typeof value === "string" ? value.trim() : ""))
         .filter((value) => value.length > 0)
     : Array.isArray(post.want_members)
-      ? (post.want_members as string[])
+      ? (post.want_members as unknown[])
+          .map((value) => (typeof value === "string" ? value.trim() : ""))
+          .filter((value): value is string => value.length > 0)
       : [];
 
   const errors: string[] = [];
@@ -200,6 +208,10 @@ export async function PATCH(
 
   if (normalizedCategories.length === 0) {
     errors.push("カテゴリを選択してください。");
+  }
+
+  if (normalizedGroup.length === 0) {
+    errors.push("推し・グループを入力してください。");
   }
 
   if (normalizedHaveMembers.length === 0) {

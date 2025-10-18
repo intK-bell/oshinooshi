@@ -122,18 +122,14 @@ export async function GET(request: NextRequest) {
       type: contact.type,
       status: contact.status,
       message: contact.message,
-      lineRequestStatus: contact.lineRequestStatus ?? null,
-      lineRequestUpdatedAt: contact.lineRequestUpdatedAt ?? null,
       sender: {
         userId: contact.senderUserId,
         name: contact.senderName ?? profileBasicsMap.get(contact.senderUserId)?.displayName ?? null,
         uuid: contact.senderUuid,
-        lineFriendUrl: profileBasicsMap.get(contact.senderUserId)?.lineFriendUrl ?? null,
       },
       recipient: {
         userId: contact.recipientUserId,
         name: profileBasicsMap.get(contact.recipientUserId)?.displayName ?? null,
-        lineFriendUrl: profileBasicsMap.get(contact.recipientUserId)?.lineFriendUrl ?? null,
       },
       createdAt: contact.createdAt,
       updatedAt: contact.updatedAt,

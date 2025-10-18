@@ -5,10 +5,8 @@ import { useEffect, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 
 const authenticatedNavLinks = [
-  { href: "/matches", label: "マッチ状況" },
   { href: "/search", label: "検索" },
   { href: "/conversations", label: "チャット" },
-  { href: "/line-requests", label: "LINE申請" },
   { href: "/post/new", label: "新規投稿" },
   { href: "/post/manage", label: "投稿管理" },
   { href: "/profile", label: "プロフィール" },
@@ -41,12 +39,12 @@ export function Header() {
   const { status } = useSession();
   const isAuthenticated = status === "authenticated";
   const [hasPendingChats, setHasPendingChats] = useState<boolean | null>(null);
-  const [hasPendingLineRequests, setHasPendingLineRequests] = useState<boolean | null>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
       setHasPendingChats(null);
-      setHasPendingLineRequests(null);
+      setIsMenuOpen(false);
       return;
     }
 
@@ -59,22 +57,6 @@ export function Header() {
 
     type NotificationContact = {
       status?: string;
-      lineRequestStatus?: string | null;
-      viewerRole?: "sender" | "recipient";
-    };
-
-    const deriveLineStatus = (contact: NotificationContact): string => {
-      const raw = typeof contact.lineRequestStatus === "string" ? contact.lineRequestStatus : null;
-      if (raw === "pending_sender" || raw === "pending_recipient" || raw === "accepted" || raw === "declined") {
-        return raw;
-      }
-      if (contact.status === "declined") {
-        return "declined";
-      }
-      if (contact.status === "accepted" || contact.status === "pending") {
-        return contact.viewerRole === "sender" ? "pending_sender" : "pending_recipient";
-      }
-      return "accepted";
     };
 
     const fetchNotifications = async (signal: AbortSignal) => {
@@ -91,12 +73,7 @@ export function Header() {
         if (!signal.aborted && isActive) {
           const contacts = Array.isArray(data.contacts) ? data.contacts : [];
           const pendingChat = contacts.some((contact) => contact.status === "pending");
-          const pendingLine = contacts.some((contact) => {
-            const lineStatus = deriveLineStatus(contact);
-            return lineStatus === "pending_sender" || lineStatus === "pending_recipient";
-          });
           setHasPendingChats(pendingChat);
-          setHasPendingLineRequests(pendingLine);
         }
       } catch (error) {
         if (signal.aborted) {
@@ -105,7 +82,6 @@ export function Header() {
         console.error("Failed to check pending contact notifications", error);
         if (isActive) {
           setHasPendingChats(false);
-          setHasPendingLineRequests(false);
         }
       }
     };
@@ -139,17 +115,15 @@ export function Header() {
   }, [isAuthenticated]);
 
   return (
-    <header className="border-b border-[color:var(--color-border)]">
+    <header className="border-b border-[color:var(--color-border)] bg-white">
       <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-5">
         <Link href="/" className="text-base font-semibold">
           oshinooshi
         </Link>
-        {isAuthenticated ? (
-          <nav className="hidden gap-5 text-xs font-medium text-[color:var(--color-fg-muted)] md:flex">
-            {authenticatedNavLinks.map((link) => {
-              const showBadge =
-                (link.href === "/conversations" && hasPendingChats) ||
-                (link.href === "/line-requests" && hasPendingLineRequests);
+        <div className="hidden gap-5 text-xs font-medium text-[color:var(--color-fg-muted)] md:flex">
+          {isAuthenticated ? (
+            authenticatedNavLinks.map((link) => {
+              const showBadge = link.href === "/conversations" && hasPendingChats;
               return (
                 <span key={link.href} className="relative">
                   <Link href={link.href} className="hover:text-[color:var(--color-accent-emerald-ink)]">
@@ -160,12 +134,51 @@ export function Header() {
                   ) : null}
                 </span>
               );
+            })
+          ) : (
+            <span />
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="inline-flex items-center justify-center rounded-full border border-[color:var(--color-border)] px-3 py-2 text-xs text-[#0b1f33] transition hover:bg-[color:var(--color-surface-2)] md:hidden"
+            onClick={() => setIsMenuOpen((prev) => !prev)}
+            aria-expanded={isMenuOpen}
+            aria-controls="mobile-nav"
+          >
+            メニュー
+          </button>
+          {isAuthenticated ? <LogoutButton /> : <LoginButton />}
+        </div>
+      </div>
+      <div
+        id="mobile-nav"
+        className={`md:hidden ${isMenuOpen ? "max-h-[480px] border-t border-[color:var(--color-border)]" : "max-h-0 overflow-hidden border-t border-transparent"} transition-[max-height] duration-200 ease-in-out`}
+      >
+        {isAuthenticated ? (
+          <nav className="flex flex-col gap-4 px-5 py-4 text-xs font-medium text-[color:var(--color-fg-muted)]">
+            {authenticatedNavLinks.map((link) => {
+              const showBadge = link.href === "/conversations" && hasPendingChats;
+              return (
+                <Link
+                  key={`mobile-${link.href}`}
+                  href={link.href}
+                  className="flex items-center justify-between"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  <span>{link.label}</span>
+                  {showBadge ? <span className="h-2 w-2 rounded-full bg-[#f97316]" aria-hidden="true" /> : null}
+                </Link>
+              );
             })}
           </nav>
         ) : (
-          <div className="hidden md:block" />
+          <div className="px-5 py-4 text-xs text-[color:var(--color-fg-muted)]">
+            <p className="mb-3">ログインすると検索やチャットを利用できます。</p>
+            <LoginButton />
+          </div>
         )}
-        {isAuthenticated ? <LogoutButton /> : <LoginButton />}
       </div>
     </header>
   );

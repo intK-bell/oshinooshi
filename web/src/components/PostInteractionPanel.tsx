@@ -131,12 +131,6 @@ export function PostInteractionPanel({ postId, postTitle, isOwnPost }: PostInter
           >
             チャット画面へ
           </Link>
-          <Link
-            href="/line-requests"
-            className="inline-flex items-center gap-2 rounded-full border border-[color:var(--color-border)] px-3 py-1 text-[10px] text-[#0b1f33] transition hover:bg-[color:var(--color-surface-2)]"
-          >
-            LINE申請を確認
-          </Link>
         </div>
       </div>
     </div>

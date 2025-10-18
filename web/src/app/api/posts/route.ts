@@ -62,11 +62,23 @@ export async function POST(request: NextRequest) {
   const normalizedPostType = "trade";
   const normalizedStatus = status === "published" ? "published" : "draft";
 
+  const normalizedGroup = typeof group === "string" ? group.trim() : "";
+
+  if (normalizedGroup.length === 0) {
+    errors.push("推し・グループを入力してください。");
+  }
+
   if (typeof title !== "string" || title.trim().length === 0) {
     errors.push("タイトルを入力してください。");
   }
 
-  if (!Array.isArray(categories) || categories.length === 0) {
+  const normalizedCategories = Array.isArray(categories)
+    ? categories
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .filter((value) => value.length > 0)
+    : [];
+
+  if (normalizedCategories.length === 0) {
     errors.push("カテゴリを選択してください。");
   }
 
@@ -103,10 +115,8 @@ export async function POST(request: NextRequest) {
       status: normalizedStatus,
       post_type: normalizedPostType,
       title: (title as string).trim(),
-      group: typeof group === "string" ? group : null,
-      categories: Array.isArray(categories)
-        ? categories.filter((value): value is string => typeof value === "string")
-        : [],
+      group: normalizedGroup,
+      categories: normalizedCategories,
       body: typeof body === "string" ? body.trim() : "",
       images: Array.isArray(images)
         ? images.filter((value): value is string => typeof value === "string")

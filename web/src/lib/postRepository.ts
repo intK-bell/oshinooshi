@@ -107,6 +107,59 @@ export type SearchFilters = {
   limit?: number;
 };
 
+export type ListPostsByUserOptions = {
+  status?: "draft" | "published";
+  limit?: number;
+};
+
+export async function listPostsByUser(userId: string, options: ListPostsByUserOptions = {}): Promise<PostRecord[]> {
+  requireClient();
+
+  const rawLimit = typeof options.limit === "number" ? options.limit : Number.NaN;
+  const normalizedLimit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 50) : undefined;
+  const normalizedStatus = options.status === "published" ? "published" : options.status === "draft" ? "draft" : null;
+
+  const commandInput: QueryCommandInput = {
+    TableName: POSTS_TABLE!,
+    IndexName: "user_id-index",
+    KeyConditionExpression: "#uid = :uid",
+    ExpressionAttributeNames: {
+      "#uid": "user_id",
+    },
+    ExpressionAttributeValues: {
+      ":uid": { S: userId },
+    },
+    ScanIndexForward: false,
+  };
+
+  if (normalizedLimit) {
+    commandInput.Limit = Math.min(normalizedLimit * 2, 100);
+  }
+
+  if (normalizedStatus) {
+    commandInput.FilterExpression = "#st = :st";
+    commandInput.ExpressionAttributeNames = {
+      ...commandInput.ExpressionAttributeNames,
+      "#st": "status",
+    };
+    commandInput.ExpressionAttributeValues = {
+      ...commandInput.ExpressionAttributeValues,
+      ":st": { S: normalizedStatus },
+    };
+  }
+
+  const result = await dynamoClient!.send(new QueryCommand(commandInput));
+  const posts = (result.Items ?? []).map((item) => formatPost(unmarshall(item) as StoredPostItem));
+
+  posts.sort((a, b) => {
+    const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+    const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+    return timeB - timeA;
+  });
+
+  return normalizedLimit ? posts.slice(0, normalizedLimit) : posts;
+}
+
 export async function searchPublishedPosts(filters: SearchFilters = {}): Promise<PostRecord[]> {
   requireClient();
 
