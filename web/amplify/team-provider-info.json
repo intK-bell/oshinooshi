@@ -1,0 +1,36 @@
+{
+  "dev": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-oshinooshiapp-dev-68251-authRole",
+      "UnauthRoleArn": "arn:aws:iam::478860598832:role/amplify-oshinooshiapp-dev-68251-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::478860598832:role/amplify-oshinooshiapp-dev-68251-authRole",
+      "Region": "ap-northeast-1",
+      "DeploymentBucketName": "amplify-oshinooshiapp-dev-68251-deployment",
+      "UnauthRoleName": "amplify-oshinooshiapp-dev-68251-unauthRole",
+      "StackName": "amplify-oshinooshiapp-dev-68251",
+      "StackId": "arn:aws:cloudformation:ap-northeast-1:478860598832:stack/amplify-oshinooshiapp-dev-68251/21d6ccc0-acc7-11f0-8bd7-0a75b67babbf",
+      "AmplifyAppId": "d2bgnhs33529ds"
+    }
+  },
+  "prod": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-oshinooshiapp-prod-1247f-authRole",
+      "UnauthRoleArn": "arn:aws:iam::478860598832:role/amplify-oshinooshiapp-prod-1247f-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::478860598832:role/amplify-oshinooshiapp-prod-1247f-authRole",
+      "Region": "ap-northeast-1",
+      "DeploymentBucketName": "amplify-oshinooshiapp-prod-1247f-deployment",
+      "UnauthRoleName": "amplify-oshinooshiapp-prod-1247f-unauthRole",
+      "StackName": "amplify-oshinooshiapp-prod-1247f",
+      "StackId": "arn:aws:cloudformation:ap-northeast-1:478860598832:stack/amplify-oshinooshiapp-prod-1247f/ce63c600-acc7-11f0-8dd5-0af05c7c7b85",
+      "AmplifyAppId": "d2bgnhs33529ds"
+    },
+    "categories": {
+      "hosting": {
+        "amplifyhosting": {
+          "appId": "d2bgnhs33529ds",
+          "type": "cicd"
+        }
+      }
+    }
+  }
+}
