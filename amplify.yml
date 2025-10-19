@@ -8,10 +8,10 @@ frontend:
       commands:
         - npm --prefix ./web run build
   artifacts:
-    baseDirectory: .next
+    baseDirectory: web/.next
     files:
       - '**/*'
   cache:
     paths:
-      - node_modules/**
+      - web/node_modules/**
   appRoot: web
