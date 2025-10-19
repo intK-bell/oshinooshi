@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Header } from "../../../components/Header";
 import { PostImageUploader, type PostImageAsset } from "../../../components/PostImageUploader";
-import { POST_CATEGORIES, POST_GROUPS } from "../../../constants/postOptions";
 
 type SubmitState = "idle" | "saving" | "success" | "error";
 
@@ -13,30 +12,70 @@ export default function NewPostPage() {
   const { data: session } = useSession();
   const isAuthenticated = Boolean(session?.user?.id);
 
-  const [postType, setPostType] = useState<"offer" | "request">("offer");
-  const [group, setGroup] = useState<string>(POST_GROUPS[0]);
+  const [group, setGroup] = useState<string>("");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [categoriesInput, setCategoriesInput] = useState("");
+  const [haveMembersInput, setHaveMembersInput] = useState("");
+  const [wantMembersInput, setWantMembersInput] = useState("");
   const [submitState, setSubmitState] = useState<SubmitState>("idle");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [images, setImages] = useState<PostImageAsset[]>([]);
-
-  const toggleCategory = (category: string) => {
-    setSelectedCategories((prev) =>
-      prev.includes(category) ? prev.filter((item) => item !== category) : [...prev, category],
-    );
-  };
 
   const resetMessages = () => {
     setErrorMessage(null);
     setSuccessMessage(null);
   };
 
+  const normalizedCategories = useMemo(
+    () =>
+      categoriesInput
+        .split(/\r?\n|,|、|\/|\s{2,}/)
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0),
+    [categoriesInput],
+  );
+
+  const normalizedHaveMembers = useMemo(
+    () =>
+      haveMembersInput
+        .split(/\r?\n|,|、|\/|\s{2,}/)
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0),
+    [haveMembersInput],
+  );
+
+  const normalizedWantMembers = useMemo(
+    () =>
+      wantMembersInput
+        .split(/\r?\n|,|、|\/|\s{2,}/)
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0),
+    [wantMembersInput],
+  );
+
   const handleSubmit = async (status: "draft" | "published") => {
     if (!isAuthenticated) {
       setErrorMessage("投稿にはログインが必要です。");
+      return;
+    }
+
+    const normalizedGroup = group.trim();
+    const normalizedTitle = title.trim();
+
+    if (normalizedGroup.length === 0) {
+      setErrorMessage("推し・グループを入力してください。");
+      return;
+    }
+
+    if (normalizedTitle.length === 0) {
+      setErrorMessage("シリーズ名を入力してください。");
+      return;
+    }
+
+    if (normalizedCategories.length === 0) {
+      setErrorMessage("グッズ種別を入力してください。");
       return;
     }
 
@@ -50,13 +89,14 @@ export default function NewPostPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          postType,
-          group: group === POST_GROUPS[0] ? null : group,
-          title,
-          categories: selectedCategories,
+          group: normalizedGroup,
+          title: normalizedTitle,
+          categories: normalizedCategories,
           body,
           status,
           images: images.map((image) => image.url),
+          haveMembers: normalizedHaveMembers,
+          wantMembers: normalizedWantMembers,
         }),
       });
 
@@ -70,12 +110,13 @@ export default function NewPostPage() {
       setSubmitState("success");
 
       if (status === "published") {
-        setPostType("offer");
-        setGroup(POST_GROUPS[0]);
+        setGroup("");
         setTitle("");
         setBody("");
-        setSelectedCategories([]);
+        setCategoriesInput("");
         setImages([]);
+        setHaveMembersInput("");
+        setWantMembersInput("");
       }
     } catch (error) {
       console.error("Failed to submit post", error);
@@ -91,7 +132,7 @@ export default function NewPostPage() {
         <section className="space-y-3">
           <h1 className="text-lg font-semibold">新規投稿</h1>
           <p className="text-xs text-[color:var(--color-fg-muted)]">
-            譲ります / 求めます の詳細を入力してください。必要な項目を保存すると、検索やマッチングに掲載されます。
+            同じシリーズのグッズ同士を交換するための投稿です。手元にあるメンバーと探しているメンバーをそれぞれ入力してください。
           </p>
           {!isAuthenticated && (
             <p className="rounded-lg border border-[#fca5a5] bg-[#fee2e2] px-4 py-2 text-[11px] text-[#b91c1c]">
@@ -109,47 +150,21 @@ export default function NewPostPage() {
         <section className="space-y-6 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-6 text-xs">
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-[color:var(--color-fg-muted)]">
-              投稿タイプ
-              <div className="flex gap-3">
-                <label className="inline-flex items-center gap-2 rounded-full border border-[color:var(--color-border)] px-3 py-2">
-                  <input
-                    type="radio"
-                    name="postType"
-                    checked={postType === "offer"}
-                    onChange={() => setPostType("offer")}
-                  />
-                  譲ります
-                </label>
-                <label className="inline-flex items-center gap-2 rounded-full border border-[color:var(--color-border)] px-3 py-2">
-                  <input
-                    type="radio"
-                    name="postType"
-                    checked={postType === "request"}
-                    onChange={() => setPostType("request")}
-                  />
-                  求めます
-                </label>
-              </div>
-            </label>
-            <label className="grid gap-1 text-[color:var(--color-fg-muted)]">
               推し・グループ
-              <select
+              <input
                 className="rounded border border-[color:var(--color-border)] px-3 py-2"
+                placeholder="例: BE:FIRST / BMSG"
                 value={group}
                 onChange={(event) => setGroup(event.target.value)}
-              >
-                {POST_GROUPS.map((groupOption) => (
-                  <option key={groupOption}>{groupOption}</option>
-                ))}
-              </select>
+              />
             </label>
           </div>
 
           <div className="grid gap-1 text-[color:var(--color-fg-muted)]">
-            タイトル
+            シリーズ
             <input
               className="rounded border border-[color:var(--color-border)] px-3 py-2"
-              placeholder="例: 乃木坂46 ミニフォト コンプ譲ります"
+              placeholder="例: BMSGオンラインくじ"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
             />
@@ -157,22 +172,42 @@ export default function NewPostPage() {
 
           <div className="grid gap-1 text-[color:var(--color-fg-muted)]">
             グッズ種別
-            <div className="flex flex-wrap gap-2">
-              {POST_CATEGORIES.map((category) => (
-                <button
-                  key={category}
-                  type="button"
-                  onClick={() => toggleCategory(category)}
-                  className={`rounded-full border px-3 py-1 transition ${
-                    selectedCategories.includes(category)
-                      ? "border-[color:var(--color-accent-emerald)] bg-[color:var(--color-accent-emerald)]/40 text-[#0b1f33]"
-                      : "border-[color:var(--color-border)] text-[color:var(--color-fg-muted)] hover:bg-[color:var(--color-surface-2)]"
-                  }`}
-                >
-                  {category}
-                </button>
-              ))}
-            </div>
+            <textarea
+              rows={2}
+              className="rounded border border-[color:var(--color-border)] px-3 py-2"
+              placeholder="例: タオルホルダー"
+              value={categoriesInput}
+              onChange={(event) => setCategoriesInput(event.target.value)}
+            />
+            <p className="text-[10px] text-[color:var(--color-fg-muted)]">*１種類のみ</p>
+          </div>
+
+          <div className="grid gap-1 text-[color:var(--color-fg-muted)]">
+            交換に出せるメンバー
+            <textarea
+              rows={3}
+              className="rounded border border-[color:var(--color-border)] px-3 py-2"
+              placeholder="例: KANON、NAOYA、RAN"
+              value={haveMembersInput}
+              onChange={(event) => setHaveMembersInput(event.target.value)}
+            />
+            <p className="text-[10px] text-[color:var(--color-fg-muted)]">
+              改行や読点で区切って入力できます。手元にあるメンバーを列挙してください。
+            </p>
+          </div>
+
+          <div className="grid gap-1 text-[color:var(--color-fg-muted)]">
+            探しているメンバー
+            <textarea
+              rows={3}
+              className="rounded border border-[color:var(--color-border)] px-3 py-2"
+              placeholder="例: SKY-HI、RYUHEI"
+              value={wantMembersInput}
+              onChange={(event) => setWantMembersInput(event.target.value)}
+            />
+            <p className="text-[10px] text-[color:var(--color-fg-muted)]">
+             改行や読点で区切って入力できます。交換で探しているメンバーを入力してください。
+            </p>
           </div>
 
           <div className="grid gap-1 text-[color:var(--color-fg-muted)]">

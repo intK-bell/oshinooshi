@@ -36,11 +36,19 @@ resource "random_id" "photo_bucket" {
 resource "aws_s3_bucket" "photo" {
   bucket = "${local.app_name}-photo-${local.env}-${random_id.photo_bucket.hex}"
 
+  lifecycle {
+    prevent_destroy = true
+  }
+
   tags = local.tags
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "photo" {
   bucket = aws_s3_bucket.photo.id
+
+  lifecycle {
+    prevent_destroy = true
+  }
 
   rule {
     id     = "transient"
@@ -82,6 +90,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "photo" {
 resource "aws_s3_bucket_versioning" "photo" {
   bucket = aws_s3_bucket.photo.id
 
+  lifecycle {
+    prevent_destroy = true
+  }
+
   versioning_configuration {
     status = "Enabled"
   }
@@ -89,6 +101,10 @@ resource "aws_s3_bucket_versioning" "photo" {
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "photo" {
   bucket = aws_s3_bucket.photo.id
+
+  lifecycle {
+    prevent_destroy = true
+  }
 
   rule {
     apply_server_side_encryption_by_default {
@@ -270,6 +286,54 @@ resource "aws_dynamodb_table" "posts" {
 }
 
 # --------------------
+# Post contact table
+# --------------------
+resource "aws_dynamodb_table" "post_contact" {
+  name         = "${local.app_name}-post-contact-${local.env}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "post_id"
+  range_key    = "contact_id"
+
+  attribute {
+    name = "post_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "contact_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "recipient_user_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "sender_user_id"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "recipient_user_id-index"
+    hash_key        = "recipient_user_id"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "sender_user_id-index"
+    hash_key        = "sender_user_id"
+    projection_type = "ALL"
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  tags = local.tags
+}
+
+# --------------------
 # Messaging & Events
 # --------------------
 resource "aws_sqs_queue" "photo_intake" {
@@ -317,15 +381,15 @@ resource "aws_cloudwatch_event_rule" "moderation_outcome" {
   description    = "Route moderation outcomes to SNS"
   event_bus_name = aws_cloudwatch_event_bus.app.name
   event_pattern = jsonencode({
-    "source"      : ["oshinooshi.moderation"],
+    "source" : ["oshinooshi.moderation"],
     "detail-type" : ["photo.moderation.result"]
   })
 }
 
 resource "aws_cloudwatch_event_target" "moderation_to_sns" {
-  rule      = aws_cloudwatch_event_rule.moderation_outcome.name
-  target_id = "inapp-sns"
-  arn       = aws_sns_topic.notify_in_app.arn
+  rule           = aws_cloudwatch_event_rule.moderation_outcome.name
+  target_id      = "inapp-sns"
+  arn            = aws_sns_topic.notify_in_app.arn
   event_bus_name = aws_cloudwatch_event_bus.app.name
 }
 
@@ -340,8 +404,8 @@ resource "aws_sns_topic_policy" "notify_in_app" {
         Principal = {
           Service = "events.amazonaws.com"
         },
-        Action    = "sns:Publish",
-        Resource  = aws_sns_topic.notify_in_app.arn,
+        Action   = "sns:Publish",
+        Resource = aws_sns_topic.notify_in_app.arn,
         Condition = {
           ArnEquals = {
             "aws:SourceArn" = aws_cloudwatch_event_rule.moderation_outcome.arn
@@ -387,8 +451,8 @@ resource "aws_iam_role_policy" "photo_processor_access" {
     Version = "2012-10-17",
     Statement = [
       {
-        Effect   = "Allow",
-        Action   = ["s3:GetObject", "s3:PutObject", "s3:CopyObject", "s3:DeleteObject", "s3:GetObjectTagging", "s3:PutObjectTagging"],
+        Effect = "Allow",
+        Action = ["s3:GetObject", "s3:PutObject", "s3:CopyObject", "s3:DeleteObject", "s3:GetObjectTagging", "s3:PutObjectTagging"],
         Resource = [
           "${aws_s3_bucket.photo.arn}/*"
         ]
@@ -412,8 +476,8 @@ resource "aws_iam_role_policy" "photo_processor_access" {
         ]
       },
       {
-        Effect   = "Allow",
-        Action   = ["sns:Publish"],
+        Effect = "Allow",
+        Action = ["sns:Publish"],
         Resource = [
           aws_sns_topic.notify_in_app.arn,
           aws_sns_topic.notify_line.arn
@@ -436,13 +500,6 @@ resource "aws_iam_role_policy" "photo_processor_access" {
 # --------------------
 # Profile readiness writer Lambda
 # --------------------
-
-data "archive_file" "profile_readiness_lambda" {
-  type        = "zip"
-  source_dir  = "${path.module}/../../lambda/profile-readiness-writer/dist"
-  output_path = "${path.module}/../../lambda/profile-readiness-writer/profile-readiness-writer.zip"
-}
-
 resource "aws_iam_role" "profile_readiness_writer" {
   name = "${local.app_name}-profile-readiness-writer-${local.env}"
 
@@ -497,8 +554,10 @@ resource "aws_lambda_function" "profile_readiness_writer" {
   timeout       = 10
   memory_size   = 256
 
-  filename         = data.archive_file.profile_readiness_lambda.output_path
-  source_code_hash = data.archive_file.profile_readiness_lambda.output_base64sha256
+  s3_bucket = var.lambda_package_bucket
+  s3_key    = var.profile_readiness_package_key
+  # Use local artifact to compute hash for update detection
+  source_code_hash = filebase64sha256("${path.module}/../../lambda/profile-readiness-writer/profile-readiness-writer.zip")
 
   environment {
     variables = {
@@ -520,6 +579,46 @@ resource "aws_lambda_function_url" "profile_readiness_writer" {
 }
 
 # --------------------
+# API Gateway for profile readiness writer
+# --------------------
+resource "aws_apigatewayv2_api" "profile_api" {
+  name          = "${local.app_name}-profile-api-${local.env}"
+  protocol_type = "HTTP"
+
+  tags = local.tags
+}
+
+resource "aws_apigatewayv2_integration" "profile_api_lambda" {
+  api_id                 = aws_apigatewayv2_api.profile_api.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.profile_readiness_writer.invoke_arn
+  integration_method     = "POST"
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "profile_api_route" {
+  api_id    = aws_apigatewayv2_api.profile_api.id
+  route_key = "POST /profile-readiness"
+  target    = "integrations/${aws_apigatewayv2_integration.profile_api_lambda.id}"
+}
+
+resource "aws_apigatewayv2_stage" "profile_api_stage" {
+  api_id      = aws_apigatewayv2_api.profile_api.id
+  name        = "$default"
+  auto_deploy = true
+
+  tags = local.tags
+}
+
+resource "aws_lambda_permission" "profile_api_invoke" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.profile_readiness_writer.arn
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.profile_api.execution_arn}/*/*"
+}
+
+# --------------------
 # Lambda & event source
 # --------------------
 resource "aws_lambda_function" "photo_processor" {
@@ -535,15 +634,15 @@ resource "aws_lambda_function" "photo_processor" {
 
   environment {
     variables = {
-      PHOTO_BUCKET_NAME          = aws_s3_bucket.photo.bucket
-      PHOTO_PROCESSOR_QUEUE_URL  = aws_sqs_queue.photo_intake.id
-      PHOTO_PROCESSOR_DLQ_URL    = aws_sqs_queue.photo_dlq.id
-      MODERATION_CONFIG_PATH     = var.moderation_config_path
-      MODERATION_OVERRIDE_TABLE  = aws_dynamodb_table.moderation_override.name
-      POST_MEDIA_TABLE           = aws_dynamodb_table.post_media.name
-      NOTIFY_IN_APP_TOPIC_ARN    = aws_sns_topic.notify_in_app.arn
-      NOTIFY_LINE_TOPIC_ARN      = aws_sns_topic.notify_line.arn
-      EVENT_BUS_NAME             = aws_cloudwatch_event_bus.app.name
+      PHOTO_BUCKET_NAME         = aws_s3_bucket.photo.bucket
+      PHOTO_PROCESSOR_QUEUE_URL = aws_sqs_queue.photo_intake.id
+      PHOTO_PROCESSOR_DLQ_URL   = aws_sqs_queue.photo_dlq.id
+      MODERATION_CONFIG_PATH    = var.moderation_config_path
+      MODERATION_OVERRIDE_TABLE = aws_dynamodb_table.moderation_override.name
+      POST_MEDIA_TABLE          = aws_dynamodb_table.post_media.name
+      NOTIFY_IN_APP_TOPIC_ARN   = aws_sns_topic.notify_in_app.arn
+      NOTIFY_LINE_TOPIC_ARN     = aws_sns_topic.notify_line.arn
+      EVENT_BUS_NAME            = aws_cloudwatch_event_bus.app.name
     }
   }
 
@@ -604,8 +703,8 @@ resource "aws_cloudfront_distribution" "photo" {
       }
     }
 
-    compress = true
-    min_ttl  = 0
+    compress    = true
+    min_ttl     = 0
     default_ttl = 31536000
     max_ttl     = 31536000
   }
@@ -632,12 +731,12 @@ resource "aws_s3_bucket_policy" "photo" {
     Version = "2012-10-17",
     Statement = [
       {
-        Sid       = "AllowCloudFrontServicePrincipalReadOnly",
-        Effect    = "Allow",
+        Sid    = "AllowCloudFrontServicePrincipalReadOnly",
+        Effect = "Allow",
         Principal = {
           Service = "cloudfront.amazonaws.com"
         },
-        Action = "s3:GetObject",
+        Action   = "s3:GetObject",
         Resource = "${aws_s3_bucket.photo.arn}/public/posts/*",
         Condition = {
           StringEquals = {

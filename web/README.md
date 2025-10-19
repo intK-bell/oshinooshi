@@ -38,10 +38,26 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 - `POST_MEDIA_BUCKET` — 投稿画像を保存する S3 バケット名
 - `POST_MEDIA_BASE_URL` — （任意）CloudFront 等の公開URL。未設定の場合は S3 の URL が利用されます
 - `POST_MEDIA_PREFIX` — 投稿画像の保存パス（既定 `public/posts/media`）
-- `POST_MEDIA_ACL` — 投稿画像アップロード時に付与する ACL（既定 `public-read`）
+- `POST_MEDIA_ACL` — 投稿画像アップロード時に付与する ACL。バケットで ACL が無効（BucketOwnerEnforced）の場合は空欄にしてください
 - `POST_MEDIA_MAX_SIZE` — アップロードを許可する最大ファイルサイズ（バイト単位、既定は 5MB）
+- `POST_CONTACT_TABLE` — 投稿に対するチャット/リクエストを保存する DynamoDB テーブル名
 
 AWS の資格情報は CLI や環境変数で設定したものがそのまま利用されます。
+
+### ダミー投稿の投入
+
+開発用のダミー投稿はシードスクリプトで投入できます。事前に `POSTS_TABLE` と AWS 資格情報を設定してください。
+
+```bash
+# 5 件の公開投稿を投入（既定値）
+npm run seed:posts
+
+# 件数・ユーザー ID を指定して投入
+npm run seed:posts -- --count 10 --users demo-user-1,demo-user-2
+
+# 一部下書き投稿も含める
+npm run seed:posts -- --include-drafts
+```
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 

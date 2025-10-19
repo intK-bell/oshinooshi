@@ -47,26 +47,58 @@ export async function POST(request: NextRequest) {
   }
 
   const {
-    postType,
     group,
     title,
     categories,
     body,
     status,
     images,
+    haveMembers,
+    wantMembers,
   } = payload as Record<string, unknown>;
 
   const errors: string[] = [];
 
-  const normalizedPostType = postType === "request" ? "request" : "offer";
+  const normalizedPostType = "trade";
   const normalizedStatus = status === "published" ? "published" : "draft";
+
+  const normalizedGroup = typeof group === "string" ? group.trim() : "";
+
+  if (normalizedGroup.length === 0) {
+    errors.push("推し・グループを入力してください。");
+  }
 
   if (typeof title !== "string" || title.trim().length === 0) {
     errors.push("タイトルを入力してください。");
   }
 
-  if (!Array.isArray(categories) || categories.length === 0) {
+  const normalizedCategories = Array.isArray(categories)
+    ? categories
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .filter((value) => value.length > 0)
+    : [];
+
+  if (normalizedCategories.length === 0) {
     errors.push("カテゴリを選択してください。");
+  }
+
+  const normalizedHaveMembers = Array.isArray(haveMembers)
+    ? haveMembers
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .filter((value) => value.length > 0)
+    : [];
+  const normalizedWantMembers = Array.isArray(wantMembers)
+    ? wantMembers
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .filter((value) => value.length > 0)
+    : [];
+
+  if (normalizedHaveMembers.length === 0) {
+    errors.push("交換に出せるメンバーを1名以上入力してください。");
+  }
+
+  if (normalizedWantMembers.length === 0) {
+    errors.push("探しているメンバーを1名以上入力してください。");
   }
 
   if (errors.length > 0) {
@@ -83,14 +115,14 @@ export async function POST(request: NextRequest) {
       status: normalizedStatus,
       post_type: normalizedPostType,
       title: (title as string).trim(),
-      group: typeof group === "string" ? group : null,
-      categories: Array.isArray(categories)
-        ? categories.filter((value): value is string => typeof value === "string")
-        : [],
+      group: normalizedGroup,
+      categories: normalizedCategories,
       body: typeof body === "string" ? body.trim() : "",
       images: Array.isArray(images)
         ? images.filter((value): value is string => typeof value === "string")
         : [],
+      have_members: normalizedHaveMembers,
+      want_members: normalizedWantMembers,
       created_at: now,
       updated_at: now,
     },
@@ -164,12 +196,14 @@ export async function GET(request: NextRequest) {
       return {
         postId: unmarshalled.post_id as string,
         status: unmarshalled.status as string,
-        postType: unmarshalled.post_type as string,
+        postType: (unmarshalled.post_type as string) ?? "trade",
         title: (unmarshalled.title as string) ?? "",
         categories: (unmarshalled.categories as string[]) ?? [],
         body: (unmarshalled.body as string) ?? "",
         group: (unmarshalled.group as string | null) ?? null,
         images: (unmarshalled.images as string[]) ?? [],
+        haveMembers: (unmarshalled.have_members as string[]) ?? [],
+        wantMembers: (unmarshalled.want_members as string[]) ?? [],
         createdAt: (unmarshalled.created_at as string) ?? null,
         updatedAt: (unmarshalled.updated_at as string) ?? null,
       };

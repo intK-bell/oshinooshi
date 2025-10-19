@@ -4,7 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ChangeEvent } from "react";
 import { Header } from "../../components/Header";
 import { HintTooltip } from "../../components/HintTooltip";
+import { basicProfileTemplate } from "../../content/helpContent";
 import { useSession } from "next-auth/react";
+import { AFFINITY_QUESTIONS } from "../../constants/affinitySurvey";
+import { sanitizeAffinityAnswers } from "../../lib/affinitySimilarity";
 
 const prefectures = [
   "指定なし",
@@ -34,6 +37,16 @@ const skillTags = [
   "評価100件以上",
 ];
 
+const AFFINITY_QUESTION_COUNT = AFFINITY_QUESTIONS.length;
+
+const likertScaleOptions = [
+  { value: 1, label: "1 まったくそう思わない" },
+  { value: 2, label: "2 あまりそう思わない" },
+  { value: 3, label: "3 どちらとも言えない" },
+  { value: 4, label: "4 ややそう思う" },
+  { value: 5, label: "5 とてもそう思う" },
+] as const;
+
 const visibilityOptions = [
   { value: "public", label: "全ユーザーに公開" },
   { value: "match_only", label: "マッチ成立後に公開" },
@@ -47,42 +60,46 @@ type ProfileFormState = {
   displayName: string;
   phonetic: string;
   bio: string;
+  favoriteMember: string;
   prefecture: string;
   city: string;
-  allowOnline: boolean;
   availability: string[];
   skillTags: string[];
   freeTags: string;
-  email: string;
-  lineId: string;
-  workspace: string;
   links: string;
   visibility: string;
   avatarUrl: string;
   policyAgreed: boolean;
+  affinitySurvey: AffinitySurveyState;
   notifications: {
     match: boolean;
     reminder: boolean;
   };
 };
 
+type AffinitySurveyState = {
+  answers: Array<number | null>;
+  updatedAt: string | null;
+};
+
 const initialProfile: ProfileFormState = {
   displayName: "さくらんぼ@乃木坂",
   phonetic: "さくらんぼ",
   bio: "乃木坂歴 8 年 / 生写真メイン。関東中心に交換しています。オンラインも対応可。",
+  favoriteMember: "乃木坂46 山下美月",
   prefecture: "東京都",
   city: "渋谷 / 郡山",
-  allowOnline: true,
   availability: ["生写真", "グッズ整理"],
   skillTags: ["発送迅速", "評価100件以上"],
   freeTags: "現地引取可",
-  email: "",
-  lineId: "",
-  workspace: "",
   links: "https://instagram.com/example",
   visibility: "public",
   avatarUrl: "",
   policyAgreed: false,
+  affinitySurvey: {
+    answers: Array.from({ length: AFFINITY_QUESTION_COUNT }, () => null),
+    updatedAt: null,
+  },
   notifications: {
     match: true,
     reminder: false,
@@ -100,10 +117,49 @@ function mergeProfile(base: ProfileFormState, incoming?: Partial<ProfileFormStat
     availability: incoming.availability ?? base.availability,
     skillTags: incoming.skillTags ?? base.skillTags,
     avatarUrl: incoming.avatarUrl ?? base.avatarUrl,
+    favoriteMember: incoming.favoriteMember ?? base.favoriteMember,
+    affinitySurvey: mergeAffinitySurvey(base.affinitySurvey, incoming.affinitySurvey),
     notifications: {
       ...base.notifications,
       ...(incoming.notifications ?? {}),
     },
+  };
+}
+
+function mergeAffinitySurvey(
+  base: AffinitySurveyState,
+  incoming?: Partial<AffinitySurveyState> | null,
+): AffinitySurveyState {
+  const baseAnswers = Array.from({ length: AFFINITY_QUESTION_COUNT }, (_, index) => base.answers[index] ?? null);
+
+  if (!incoming) {
+    return {
+      answers: baseAnswers,
+      updatedAt: base.updatedAt,
+    };
+  }
+
+  const sanitizedIncoming = sanitizeAffinityAnswers(incoming.answers);
+  const mergedAnswers = Array.from({ length: AFFINITY_QUESTION_COUNT }, (_, index) => {
+    const explicitNull = Array.isArray(incoming.answers) && incoming.answers[index] === null;
+    if (explicitNull) {
+      return null;
+    }
+    const sanitizedValue = sanitizedIncoming ? sanitizedIncoming[index] : undefined;
+    if (typeof sanitizedValue === "number") {
+      return sanitizedValue;
+    }
+    if (sanitizedValue === null) {
+      return null;
+    }
+    return baseAnswers[index];
+  });
+
+  const updatedAt = typeof incoming.updatedAt === "string" ? incoming.updatedAt : base.updatedAt;
+
+  return {
+    answers: mergedAnswers,
+    updatedAt,
   };
 }
 
@@ -123,9 +179,46 @@ export default function ProfilePage() {
     | { state: "synced"; updatedAt: string | null }
     | { state: "error"; message: string }
   >({ state: "idle" });
+  const [previewVisibility, setPreviewVisibility] = useState(profile.visibility);
+
+  const affinityAnsweredCount = useMemo(
+    () => profile.affinitySurvey.answers.filter((answer): answer is number => typeof answer === "number").length,
+    [profile.affinitySurvey.answers],
+  );
+
+  const surveyTargetName = useMemo(() => {
+    const trimmed = profile.favoriteMember.trim();
+    return trimmed.length > 0 ? trimmed : "推し";
+  }, [profile.favoriteMember]);
 
   const updateProfile = <K extends keyof ProfileFormState>(key: K, value: ProfileFormState[K]) => {
     setProfile((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const updateAffinityAnswer = (index: number, value: number | null) => {
+    if (index < 0 || index >= AFFINITY_QUESTION_COUNT) {
+      return;
+    }
+
+    const normalized = typeof value === "number" ? Math.min(Math.max(Math.round(value), 1), 5) : null;
+
+    setProfile((prev) => {
+      const current = prev.affinitySurvey.answers[index] ?? null;
+      if (current === normalized) {
+        return prev;
+      }
+
+      const nextAnswers = [...prev.affinitySurvey.answers];
+      nextAnswers[index] = normalized;
+
+      return {
+        ...prev,
+        affinitySurvey: {
+          answers: nextAnswers,
+          updatedAt: new Date().toISOString(),
+        },
+      };
+    });
   };
 
   const toggleSelection = (key: "availability" | "skillTags", tag: string) => {
@@ -145,6 +238,12 @@ export default function ProfilePage() {
 
   const availabilityText = profile.availability.length ? profile.availability.join("・") : "未選択";
   const skillsText = profile.skillTags.length ? profile.skillTags.join("・") : "未選択";
+  const favoriteText = profile.favoriteMember.trim() ? profile.favoriteMember.trim() : "未設定";
+  const previewVisibilityLabel =
+    visibilityOptions.find((option) => option.value === previewVisibility)?.label ?? "公開設定が未選択です";
+  const isPreviewDifferent = previewVisibility !== profile.visibility;
+  const currentVisibilityLabel =
+    visibilityOptions.find((option) => option.value === profile.visibility)?.label ?? "公開設定が未選択です";
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -223,12 +322,11 @@ export default function ProfilePage() {
     const basicCompleted = isFilled(profile.displayName) && isFilled(profile.phonetic) && isFilled(profile.bio);
     const basicStarted = isFilled(profile.displayName) || isFilled(profile.phonetic) || isFilled(profile.bio);
 
-    const areaCompleted = profile.prefecture !== "指定なし" && isFilled(profile.city);
-    const areaStarted = profile.prefecture !== "指定なし" || isFilled(profile.city) || profile.allowOnline;
+    const affinityCompleted = affinityAnsweredCount === AFFINITY_QUESTION_COUNT;
+    const affinityStarted = affinityAnsweredCount > 0;
 
-    const contactFields = [profile.email, profile.lineId, profile.workspace];
-    const contactCompleted = contactFields.some((field) => isFilled(field));
-    const contactStarted = contactCompleted;
+    const areaCompleted = profile.prefecture !== "指定なし" && isFilled(profile.city);
+    const areaStarted = profile.prefecture !== "指定なし" || isFilled(profile.city);
 
     const policyCompleted = profile.policyAgreed;
 
@@ -252,20 +350,20 @@ export default function ProfilePage() {
         hint: "表示名・ふりがな・自己紹介の3項目がすべて入力されると完了になります。",
       },
       {
+        key: "affinity",
+        label: "推し傾向アンケート",
+        status: determineStatus(affinityCompleted, affinityStarted),
+        description: "9問の設問に回答すると、類似度レコメンドが利用できるようになります。",
+        anchor: "#affinity",
+        hint: "すべての質問に回答すると完了です。途中保存も可能です。",
+      },
+      {
         key: "activity",
         label: "活動エリア",
         status: determineStatus(areaCompleted, areaStarted),
-        description: "都道府県やオンライン対応を設定するとマッチング精度が上がります。",
+        description: "都道府県や市区情報を設定するとマッチング精度が上がります。",
         anchor: "#activity",
-        hint: "都道府県と市区/主要駅を入力し、オンライン交換の可否を確認しましょう。",
-      },
-      {
-        key: "contact",
-        label: "連絡手段",
-        status: determineStatus(contactCompleted, contactStarted),
-        description: "メールやSNSを登録して取引後の連絡手段を確保しましょう。",
-        anchor: "#contact",
-        hint: "メール・LINE・Slack/Discordのいずれか入力で完了とみなします。",
+        hint: "都道府県と市区/主要駅を入力しましょう。",
       },
       {
         key: "policy",
@@ -295,7 +393,7 @@ export default function ProfilePage() {
     });
 
     return { readinessItems: mergedItems, readinessSections: sectionStatus };
-  }, [profile, serverStatuses]);
+  }, [profile, serverStatuses, affinityAnsweredCount]);
 
   const statusTokens: Record<ReadinessStatus, { label: string; badgeClass: string; accentColor: string }> = {
     completed: {
@@ -387,10 +485,13 @@ export default function ProfilePage() {
     setProfile((prev) =>
       mergeProfile(prev, {
         displayName: prev.displayName?.trim()?.length ? prev.displayName : session.user?.name ?? "LINEユーザー",
-        lineId: session.user.id ?? prev.lineId,
       }),
     );
   }, [session?.user]);
+
+  useEffect(() => {
+    setPreviewVisibility((current) => (current === profile.visibility ? current : profile.visibility));
+  }, [profile.visibility]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -470,8 +571,17 @@ export default function ProfilePage() {
     if (!profile.bio.trim()) {
       validationErrors.push("自己紹介を入力してください。");
     }
+    const favoriteInput = profile.favoriteMember.trim();
+    if (!favoriteInput) {
+      validationErrors.push("推しているメンバー・ユニットを入力してください。");
+    } else if (/箱\s*推し/i.test(favoriteInput)) {
+      validationErrors.push("推しているメンバーは具体的な名前で入力してください（「箱推し」は選べません）。");
+    }
     if (!profile.policyAgreed) {
       validationErrors.push("利用ポリシーへの同意が必要です。");
+    }
+    if (affinityAnsweredCount < AFFINITY_QUESTION_COUNT) {
+      validationErrors.push("推し傾向アンケートの9問すべてに回答してください。");
     }
 
     if (validationErrors.length > 0) {
@@ -515,19 +625,17 @@ export default function ProfilePage() {
             displayName: profile.displayName,
             phonetic: profile.phonetic,
             bio: profile.bio,
+            favoriteMember: profile.favoriteMember,
             prefecture: profile.prefecture,
             city: profile.city,
-            allowOnline: profile.allowOnline,
             availability: profile.availability,
             skillTags: profile.skillTags,
             freeTags: profile.freeTags,
-            email: profile.email,
-            lineId: profile.lineId,
-            workspace: profile.workspace,
             links: profile.links,
             visibility: profile.visibility,
             avatarUrl: profile.avatarUrl,
             policyAgreed: profile.policyAgreed,
+            affinitySurvey: profile.affinitySurvey,
             notifications: profile.notifications,
           }),
         });
@@ -592,6 +700,7 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-white text-[#0b1f33]">
       <Header />
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-5 py-14">
+
         <section className="space-y-3">
           <h1 className="text-lg font-semibold">プロフィール設定</h1>
           <p className="text-xs text-[color:var(--color-fg-muted)]">
@@ -706,15 +815,27 @@ export default function ProfilePage() {
               </label>
             </div>
             <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_200px]">
-              <label className="flex flex-col gap-2 text-xs text-[color:var(--color-fg-muted)]">
-                自己紹介
-                <textarea
-                  className="h-32 rounded border border-[color:var(--color-border)] px-3 py-2 text-xs"
-                  placeholder="推しや交換ポリシー、対応できる日時などを書いてください"
-                  value={profile.bio}
-                  onChange={(event) => updateProfile("bio", event.target.value)}
-                />
-              </label>
+              <div className="flex flex-col gap-4 text-xs text-[color:var(--color-fg-muted)]">
+                <label className="flex flex-col gap-2">
+                  自己紹介
+                  <textarea
+                    className="h-32 rounded border border-[color:var(--color-border)] px-3 py-2 text-xs"
+                    placeholder="推しや交換ポリシー、対応できる日時などを書いてください"
+                    value={profile.bio}
+                    onChange={(event) => updateProfile("bio", event.target.value)}
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  推しているメンバー・ユニット
+                  <input
+                    className="rounded border border-[color:var(--color-border)] px-3 py-2 text-xs"
+                    placeholder="例: 乃木坂46 山下美月 / 新しい学校のリーダーズ SUZUKA"
+                    value={profile.favoriteMember}
+                    onChange={(event) => updateProfile("favoriteMember", event.target.value)}
+                  />
+                  <span className="text-[10px] text-[color:var(--color-fg-muted)]">箱推しではなく、具体的なメンバー名を入力してください。</span>
+                </label>
+              </div>
               <div className="flex flex-col gap-3 text-xs text-[color:var(--color-fg-muted)]">
                 <span>アイコン画像</span>
                 <div className="flex flex-1 flex-col items-center justify-center gap-3 rounded border border-dashed border-[color:var(--color-border)] bg-[color:var(--color-surface-2)] p-4">
@@ -743,13 +864,100 @@ export default function ProfilePage() {
                 </p>
               </div>
             </div>
+            <div className="space-y-2 rounded-xl border border-[color:var(--color-border)] bg-white p-4 text-[11px] text-[color:var(--color-fg-muted)]">
+              <div>
+                <h3 className="text-xs font-semibold text-[#0b1f33]">自己紹介の基本構成</h3>
+                <p className="text-[10px]">テンプレートに沿って書き出すと、伝えたいポイントを整理しやすくなります。</p>
+              </div>
+              <ul className="space-y-2">
+                {basicProfileTemplate.map((item) => (
+                  <li key={item} className="flex gap-2 rounded border border-[color:var(--color-border)] bg-[color:var(--color-surface-2)] px-3 py-2">
+                    <span className="font-semibold text-[#0b1f33]">・</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[10px]">
+                テンプレートにまとめた内容は、ページ下部のプレビューで確認しながら微調整できます。
+              </p>
+            </div>
+          </section>
+          <section id="affinity" className="space-y-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5">
+            <header className="flex flex-col gap-1">
+              <h2 className="text-sm font-semibold">推し傾向アンケート</h2>
+              <p className="text-[11px] text-[color:var(--color-fg-muted)]">
+                推しとの距離感やファン同士のつながり方を測る9つの質問です。{surveyTargetName}を思い浮かべて直感で回答してください。
+              </p>
+            </header>
+            <div className="flex flex-wrap items-center gap-3 text-[10px] text-[color:var(--color-fg-muted)]">
+              <span>回答状況: {affinityAnsweredCount}/{AFFINITY_QUESTION_COUNT}</span>
+              <span>対象メンバー: {surveyTargetName}</span>
+              {profile.affinitySurvey.updatedAt && (
+                <span>
+                  最終更新: {new Date(profile.affinitySurvey.updatedAt).toLocaleString("ja-JP", {
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              )}
+            </div>
+            <div className="space-y-4">
+              {AFFINITY_QUESTIONS.map((question, index) => {
+                const answer = profile.affinitySurvey.answers[index];
+                const questionText = question.text.replace(/A/g, surveyTargetName);
+                return (
+                  <div
+                    key={question.id}
+                    className="space-y-3 rounded-xl border border-[color:var(--color-border)] bg-white p-4 text-[11px] text-[color:var(--color-fg-muted)]"
+                  >
+                    <p className="text-xs font-semibold text-[#0b1f33]">
+                      Q{index + 1}. {questionText}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {likertScaleOptions.map((option) => {
+                        const isActive = answer === option.value;
+                        return (
+                          <label
+                            key={option.value}
+                            className={`cursor-pointer rounded-full border px-3 py-1 text-[10px] transition ${
+                              isActive
+                                ? "border-[color:var(--color-accent-emerald)] bg-[color:var(--color-accent-emerald)]/40 text-[#0b1f33]"
+                                : "border-[color:var(--color-border)] hover:bg-[color:var(--color-surface-2)]"
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name={`affinity-${question.id}`}
+                              value={option.value}
+                              checked={isActive}
+                              onChange={() => updateAffinityAnswer(index, option.value)}
+                              className="sr-only"
+                            />
+                            {option.label}
+                          </label>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        onClick={() => updateAffinityAnswer(index, null)}
+                        className="rounded-full border border-[color:var(--color-border)] px-3 py-1 text-[10px] transition hover:bg-[color:var(--color-surface-2)]"
+                      >
+                        クリア
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </section>
 
           <section id="activity" className="space-y-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5">
             <header className="flex flex-col gap-1">
               <h2 className="text-sm font-semibold">活動エリア</h2>
               <p className="text-[11px] text-[color:var(--color-fg-muted)]">
-                オフライン交換が可能な地域とオンライン対応可否を選択します。
+                メインで活動する都道府県と市区情報を登録すると、マッチングがスムーズになります。
               </p>
             </header>
             <div className="grid gap-4 sm:grid-cols-3">
@@ -772,62 +980,6 @@ export default function ProfilePage() {
                   placeholder="例: 渋谷 / 郡山"
                   value={profile.city}
                   onChange={(event) => updateProfile("city", event.target.value)}
-                />
-              </label>
-              <label className="flex flex-col gap-2 text-xs text-[color:var(--color-fg-muted)]">
-                <span>オンライン交換</span>
-                <div className="flex items-center gap-2 rounded border border-[color:var(--color-border)] bg-[color:var(--color-surface-2)] px-3 py-2">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4"
-                    checked={profile.allowOnline}
-                    onChange={(event) => updateProfile("allowOnline", event.target.checked)}
-                  />
-                  <span className="text-[11px]">匿名配送やデータ交換に対応する</span>
-                </div>
-              </label>
-            </div>
-          </section>
-
-          <section id="contact" className="space-y-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5">
-            <header className="flex flex-col gap-1">
-              <h2 className="text-sm font-semibold">連絡手段</h2>
-              <p className="text-[11px] text-[color:var(--color-fg-muted)]">
-                アプリ内チャットは必須です。追加したい連絡方法があれば入力してください。
-              </p>
-            </header>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="flex items-center justify-between rounded border border-[color:var(--color-border)] px-3 py-2 text-xs text-[color:var(--color-fg-muted)]">
-                <span className="font-medium text-[#0b1f33]">アプリ内メッセージ</span>
-                <span className="rounded-full bg-[color:var(--color-accent-emerald)] px-3 py-1 text-[11px] text-[color:var(--color-accent-emerald-ink)]">
-                  必須
-                </span>
-              </label>
-              <label className="flex flex-col gap-1 text-xs text-[color:var(--color-fg-muted)]">
-                メールアドレス
-                <input
-                  className="rounded border border-[color:var(--color-border)] px-3 py-2 text-xs"
-                  placeholder="例: contact@example.com"
-                  value={profile.email}
-                  onChange={(event) => updateProfile("email", event.target.value)}
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-xs text-[color:var(--color-fg-muted)]">
-                LINE ID
-                <input
-                  className="rounded border border-[color:var(--color-border)] px-3 py-2 text-xs"
-                  placeholder="任意入力"
-                  value={profile.lineId}
-                  onChange={(event) => updateProfile("lineId", event.target.value)}
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-xs text-[color:var(--color-fg-muted)]">
-                Slack / Discord
-                <input
-                  className="rounded border border-[color:var(--color-border)] px-3 py-2 text-xs"
-                  placeholder="チャンネルやユーザー名"
-                  value={profile.workspace}
-                  onChange={(event) => updateProfile("workspace", event.target.value)}
                 />
               </label>
             </div>
@@ -986,11 +1138,27 @@ export default function ProfilePage() {
           </section>
 
           <section id="preview" className="space-y-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5">
-            <header className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">プレビュー</h2>
-              <span className="rounded-full bg-[color:var(--color-surface-2)] px-3 py-1 text-[10px] text-[color:var(--color-fg-muted)]">
-                保存前に表示内容を確認しましょう
-              </span>
+            <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-sm font-semibold">プレビュー</h2>
+                <span className="rounded-full bg-[color:var(--color-surface-2)] px-3 py-1 text-[10px] text-[color:var(--color-fg-muted)]">
+                  保存前に表示内容を確認しましょう
+                </span>
+              </div>
+              <label className="flex flex-col gap-1 text-[10px] text-[color:var(--color-fg-muted)] md:text-right">
+                <span className="uppercase tracking-wide">公開レベルを選択</span>
+                <select
+                  value={previewVisibility}
+                  onChange={(event) => setPreviewVisibility(event.target.value as ProfileFormState["visibility"])}
+                  className="rounded border border-[color:var(--color-border)] px-3 py-2 text-xs text-[#0b1f33]"
+                >
+                  {visibilityOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </header>
             <div className="space-y-3 text-[color:var(--color-fg-muted)]">
               <div className="flex items-center gap-3">
@@ -1023,15 +1191,19 @@ export default function ProfilePage() {
                   <span className="mr-2 font-semibold text-[#0b1f33]">エリア</span>
                   <span>{areaText}</span>
                 </div>
+                <div className="rounded-full bg-[color:var(--color-surface-2)] px-3 py-1">
+                  <span className="mr-2 font-semibold text-[#0b1f33]">推しメン</span>
+                  <span>{favoriteText}</span>
+                </div>
               </div>
               <div className="rounded-lg border border-[color:var(--color-border)] px-3 py-3 text-[11px]">
                 <p className="font-semibold text-[#0b1f33]">公開設定</p>
-                <p className="mt-1">
-                  {
-                    visibilityOptions.find((option) => option.value === profile.visibility)?.label ??
-                    "公開設定が未選択です"
-                  }
-                </p>
+                <p className="mt-1">{previewVisibilityLabel}</p>
+                {isPreviewDifferent && (
+                  <p className="mt-1 text-[color:var(--color-fg-muted)]">
+                    実際の公開設定: {currentVisibilityLabel}
+                  </p>
+                )}
               </div>
             </div>
           </section>

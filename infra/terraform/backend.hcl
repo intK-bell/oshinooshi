@@ -1,5 +1,5 @@
 bucket         = "oshinooshi-terraform-state"
-key            = "stg/media-infra.tfstate"
+key            = "prod/media-infra.tfstate"
 region         = "ap-northeast-1"
 dynamodb_table = "oshinooshi-terraform-locks"
 encrypt        = true

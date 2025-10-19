@@ -67,3 +67,18 @@ output "posts_table_name" {
   value       = aws_dynamodb_table.posts.name
   description = "DynamoDB table for user posts"
 }
+
+output "post_contact_table_name" {
+  value       = aws_dynamodb_table.post_contact.name
+  description = "DynamoDB table for post contact requests"
+}
+
+output "profile_api_endpoint" {
+  value       = aws_apigatewayv2_api.profile_api.api_endpoint
+  description = "Base endpoint URL for profile readiness API"
+}
+
+output "profile_api_stage" {
+  value       = aws_apigatewayv2_stage.profile_api_stage.name
+  description = "Stage name for profile API"
+}

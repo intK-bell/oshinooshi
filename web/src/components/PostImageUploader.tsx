@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
+
 import { useMemo, useRef, useState, type ChangeEvent } from "react";
 
 export type PostImageAsset = {
@@ -105,6 +107,10 @@ export function PostImageUploader({
         });
 
         if (!uploadResponse.ok) {
+          const errorDetail = await uploadResponse.text().catch(() => null);
+          if (errorDetail) {
+            console.error("Upload failed response:", errorDetail);
+          }
           throw new Error(`画像のアップロードに失敗しました。（${uploadResponse.status}）`);
         }
 
