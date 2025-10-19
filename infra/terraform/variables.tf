@@ -31,6 +31,11 @@ variable "lambda_package_key" {
   description = "S3 key for Lambda deployment package"
 }
 
+variable "profile_readiness_package_key" {
+  type        = string
+  description = "S3 key for profile readiness writer lambda package"
+}
+
 variable "moderation_config_path" {
   type        = string
   description = "Path to moderation settings file"
