@@ -273,7 +273,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "build:prod": "NEXT_PUBLIC_PROFILE_API_ENDPOINT=$AMPLIFY_NEXT_PUBLIC_PROFILE_API_ENDPOINT npm run build"
   },
   "keywords": [],
   "author": "",
