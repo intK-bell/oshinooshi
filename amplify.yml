@@ -2,17 +2,28 @@ version: 1
 applications:
   - appRoot: web
     frontend:
-      framework: nextjs         # SSR判定のヒント（あってOK）
-      buildType: ssr            # SSRヒント（あってOK）
+      framework: nextjs
+      buildType: ssr
       phases:
         preBuild:
           commands:
-            - npm ci
+            # Nodeバージョンを固定（必要なら 20 を指定）
+            - nvm install 20
+            - nvm use 20
+            # npm のネットワーク安定化
+            - npm config set registry https://registry.npmjs.org/
+            - npm config set fetch-retries 5
+            - npm config set fetch-retry-mintimeout 20000
+            - npm config set fetch-retry-maxtimeout 120000
+            - npm config set prefer-online true
+            # ローカルキャッシュ活用
+            - npm config set cache .npm
+            # セキュリティ監査＆寄付チェックを切って速度＆安定化
+            - npm ci --no-audit --no-fund
         build:
           commands:
             - npm run build
-      # ← Classicエンジンが artifacts を要求するため “ダミー” を入れる
-      #    SSR配信自体は内部の検出で行われるので、ここがあってもSSRは可能
+      # Classic系が必須視するため“ダミー” artifacts（SSR検出はこれで阻害されません）
       artifacts:
         baseDirectory: .next
         files:
@@ -20,3 +31,4 @@ applications:
       cache:
         paths:
           - node_modules/**/*
+          - .npm/**/*
