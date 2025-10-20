@@ -2,6 +2,8 @@ version: 1
 applications:
   - appRoot: web
     frontend:
+      framework: nextjs         # SSR判定のヒント（あってOK）
+      buildType: ssr            # SSRヒント（あってOK）
       phases:
         preBuild:
           commands:
@@ -9,7 +11,12 @@ applications:
         build:
           commands:
             - npm run build
-      # SSR 配信なので artifacts は指定しない
+      # ← Classicエンジンが artifacts を要求するため “ダミー” を入れる
+      #    SSR配信自体は内部の検出で行われるので、ここがあってもSSRは可能
+      artifacts:
+        baseDirectory: .next
+        files:
+          - '**/*'
       cache:
         paths:
           - node_modules/**/*
