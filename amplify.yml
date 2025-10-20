@@ -1,17 +1,15 @@
 version: 1
-frontend:
-  phases:
-    preBuild:
-      commands:
-        - npm --prefix ./web ci
-    build:
-      commands:
-        - npm --prefix ./web run build
-  artifacts:
-    baseDirectory: web/.next
-    files:
-      - '**/*'
-  cache:
-    paths:
-      - web/node_modules/**
-  appRoot: web
+applications:
+  - appRoot: web
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            - npm ci
+        build:
+          commands:
+            - npm run build
+      # SSR 配信なので artifacts は指定しない
+      cache:
+        paths:
+          - node_modules/**/*
